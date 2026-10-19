@@ -3,12 +3,12 @@ declare(strict_types=1);
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
     ini_set('session.use_strict_mode', '1');
-    session_name('dabaw_helpdesk');
+    session_name('dabaw_helpdesk_tool');
     session_set_cookie_params([
         'httponly' => true,
         'secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
         'samesite' => 'Lax',
-        'path' => '/helpdesk/public/tools/sp-id-generator/',
+        'path' => '/helpdesk',
     ]);
     session_start();
 }

@@ -1,0 +1,5 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    RewriteRule ^(login|admin(?:/.*)?|dashboard(?:/.*)?)$ /helpdesk/$1 [R=302,L,NE]
+</IfModule>

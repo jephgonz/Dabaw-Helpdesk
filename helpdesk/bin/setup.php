@@ -6,25 +6,32 @@ if (PHP_SAPI !== 'cli') {
     exit;
 }
 
-require __DIR__ . '/../bootstrap/env.php';
-require __DIR__ . '/../app/Database/Connection.php';
-
-$adminName = trim((string) getenv('INITIAL_ADMIN_NAME'));
-$adminEmail = strtolower(trim((string) getenv('INITIAL_ADMIN_EMAIL')));
-$adminPassword = (string) getenv('INITIAL_ADMIN_PASSWORD');
-
-if ($adminName === '' || !filter_var($adminEmail, FILTER_VALIDATE_EMAIL) || strlen($adminPassword) < 12) {
-    fwrite(STDERR, "Set INITIAL_ADMIN_NAME, INITIAL_ADMIN_EMAIL, and an INITIAL_ADMIN_PASSWORD of at least 12 characters in the local .env file.\n");
-    exit(1);
-}
+require __DIR__ . '/../vendor/autoload.php';
 
 try {
-    $pdo = DatabaseConnection::connect();
+    $app = require __DIR__ . '/../bootstrap/app.php';
+    $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+
+    $adminName = trim((string) getenv('INITIAL_ADMIN_NAME'));
+    $adminEmail = strtolower(trim((string) getenv('INITIAL_ADMIN_EMAIL')));
+    $adminPassword = (string) getenv('INITIAL_ADMIN_PASSWORD');
+
+    if ($adminName === '' || !filter_var($adminEmail, FILTER_VALIDATE_EMAIL) || strlen($adminPassword) < 12) {
+        fwrite(STDERR, "Set INITIAL_ADMIN_NAME, INITIAL_ADMIN_EMAIL, and an INITIAL_ADMIN_PASSWORD of at least 12 characters in the local .env file.\n");
+        exit(1);
+    }
+
+    $pdo = Illuminate\Support\Facades\DB::connection()->getPdo();
     $migration = file_get_contents(__DIR__ . '/../database/migrations/001_create_helpdesk_users.sql');
     if ($migration === false) {
         throw new RuntimeException('The user-table migration file could not be read.');
     }
     $pdo->exec($migration);
+    $ticketMigration = file_get_contents(__DIR__ . '/../database/migrations/002_create_support_tickets.sql');
+    if ($ticketMigration === false) {
+        throw new RuntimeException('The support ticket migration file could not be read.');
+    }
+    $pdo->exec($ticketMigration);
 
     $existing = (int) $pdo->query('SELECT COUNT(*) FROM helpdesk_users')->fetchColumn();
     if ($existing > 0) {
