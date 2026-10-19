@@ -1,0 +1,5 @@
+Options -Indexes
+
+<FilesMatch "^(final2?\.png|tmp\.jpg)$">
+    Require all denied
+</FilesMatch>
