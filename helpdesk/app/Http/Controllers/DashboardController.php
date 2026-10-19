@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
@@ -43,41 +42,6 @@ class DashboardController extends Controller
         ]);
     }
 
-    public function staff(Request $request): Response
-    {
-        try {
-            $notices = DB::table('helpdesk_notices')
-                ->leftJoin('helpdesk_users', 'helpdesk_users.id', '=', 'helpdesk_notices.posted_by')
-                ->orderByDesc('helpdesk_notices.created_at')
-                ->limit(10)
-                ->get([
-                    'helpdesk_notices.id',
-                    'helpdesk_notices.title',
-                    'helpdesk_notices.body',
-                    'helpdesk_notices.attachment_path',
-                    'helpdesk_notices.created_at',
-                    'helpdesk_users.display_name as author',
-                ]);
-            $notices->each(function (object $notice): void {
-                $notice->attachment_url = $notice->attachment_path
-                    ? route('staff.notices.attachment', ['notice' => $notice->id])
-                    : null;
-                unset($notice->attachment_path);
-            });
-        } catch (\Throwable $exception) {
-            Log::error('Staff notices could not load.', ['exception' => $exception]);
-            $notices = collect();
-            session()->flash('error', 'The latest notices are unavailable. Check that the application database is up to date.');
-        }
-
-        $user = $request->session()->get('user');
-
-        return Inertia::render('Staff/Dashboard', [
-            'notices' => $notices,
-            'taskStatusCounts' => $this->taskStatusCounts((int) $user['id']),
-        ]);
-    }
-
     private function taskStatusCounts(?int $boardUserId = null): array
     {
         try {
@@ -102,20 +66,4 @@ class DashboardController extends Controller
         }
     }
 
-    public function staffRequests(Request $request): Response
-    {
-        $user = $request->session()->get('user');
-        try {
-            $tickets = DB::table('helpdesk_tickets')
-                ->where('submitted_by', $user['id'])
-                ->orderByDesc('created_at')
-                ->get(['id', 'subject', 'description', 'status', 'created_at']);
-        } catch (\Throwable $exception) {
-            Log::error('Staff support requests could not load.', ['exception' => $exception]);
-            $tickets = collect();
-            session()->flash('error', 'Your support requests are unavailable. Check the database connection.');
-        }
-
-        return Inertia::render('Staff/Requests', ['tickets' => $tickets]);
-    }
 }

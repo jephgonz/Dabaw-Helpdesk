@@ -33,19 +33,21 @@ class TicketController extends Controller
         ]);
     }
 
-    public function submit(Request $request): RedirectResponse
+    public function submitPublic(Request $request): RedirectResponse
     {
         $validated = $request->validate([
+            'requester_name' => ['required', 'string', 'max:120'],
+            'requester_email' => ['required', 'email', 'max:190'],
             'subject' => ['required', 'string', 'max:160'],
             'description' => ['required', 'string', 'max:10000'],
+            'website' => ['prohibited'],
         ]);
-        $user = $request->session()->get('user');
 
         try {
             DB::table('helpdesk_tickets')->insert([
-                'submitted_by' => $user['id'],
-                'requester_name' => $user['name'],
-                'requester_email' => $user['email'],
+                'submitted_by' => null,
+                'requester_name' => trim($validated['requester_name']),
+                'requester_email' => strtolower(trim($validated['requester_email'])),
                 'subject' => trim($validated['subject']),
                 'description' => trim($validated['description']),
                 'status' => 'new',
@@ -53,11 +55,11 @@ class TicketController extends Controller
                 'updated_at' => now(),
             ]);
         } catch (\Throwable $exception) {
-            Log::error('Support request submission failed.', ['exception' => $exception]);
-            return back()->withErrors(['form' => 'Your support request could not be sent. Check the database connection.']);
+            Log::error('Public support report submission failed.', ['exception' => $exception]);
+            return back()->withErrors(['form' => 'Your report could not be sent. Please try again later.']);
         }
 
-        return back()->with('success', 'Your request was sent to IT.');
+        return back()->with('success', 'Your report was sent to the helpdesk. Thank you.');
     }
 
     public function updateStatus(Request $request): RedirectResponse

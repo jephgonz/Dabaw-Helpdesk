@@ -13,7 +13,7 @@ class EnsureAdmin
     public function handle(Request $request, Closure $next): Response
     {
         if ($request->session()->get('user.role') !== 'admin') {
-            return redirect()->route('login', ['type' => 'admin']);
+            return redirect()->route('admin.login');
         }
         try {
             $active = DB::table('helpdesk_users')
@@ -27,7 +27,7 @@ class EnsureAdmin
         }
         if (!$active) {
             $request->session()->forget('user');
-            return redirect()->route('login', ['type' => 'admin']);
+            return redirect()->route('admin.login');
         }
 
         return $next($request);

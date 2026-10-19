@@ -45,7 +45,6 @@ export default function DashboardLayout({ title, activePage, children }) {
     const links = isAdmin ? adminLinks : [
         { key: 'overview', label: 'Overview', icon: '▦', href: '/dashboard' },
         { key: 'support', label: 'Request support', icon: '▤', href: '/dashboard/requests' },
-        { key: 'tasks', label: 'Task boards', icon: '▦', href: '/tasks' },
     ];
 
     return (
@@ -54,7 +53,7 @@ export default function DashboardLayout({ title, activePage, children }) {
             <aside className="dashboard-sidebar">
                 <Link className="dashboard-brand" href={appUrl(isAdmin ? '/admin' : '/dashboard')}>
                     <span className="brand-mark brand-logo"><img src={appUrl('/public/assets/images/SP.ico')} alt="" /></span>
-                    <span>Dabaw <strong>Helpdesk</strong></span>
+                    <span>Jephthah <strong>Helpdesk</strong></span>
                 </Link>
                 <p className="dashboard-nav-label">{isAdmin ? 'ADMINISTRATION' : 'STAFF WORKSPACE'}</p>
                 {links.map((link) => (
@@ -103,7 +102,7 @@ export default function DashboardLayout({ title, activePage, children }) {
                     {flash?.error && <div className="dashboard-notice error" role="alert">{flash.error}</div>}
                     {errors?.form && <div className="dashboard-notice error" role="alert">{errors.form}</div>}
                     {children}
-                    <footer className="dashboard-footer">Dabaw Helpdesk <span>·</span> {isAdmin ? 'Administration' : 'Staff support'}</footer>
+                    <footer className="dashboard-footer">Jephthah Helpdesk <span>·</span> {isAdmin ? 'Administration' : 'Staff support'}</footer>
                 </div>
             </main>
             <ChatWidget />

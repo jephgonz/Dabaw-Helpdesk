@@ -5,7 +5,7 @@ import { createInertiaApp } from '@inertiajs/react';
 const pages = import.meta.glob('./Pages/**/*.jsx');
 
 createInertiaApp({
-    title: (title) => `${title} · Dabaw Helpdesk`,
+    title: (title) => `${title} · Jephthah Helpdesk`,
     resolve: async (name) => {
         const page = pages[`./Pages/${name}.jsx`];
         if (!page) throw new Error(`Unknown Inertia page: ${name}`);

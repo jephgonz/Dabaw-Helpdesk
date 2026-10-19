@@ -19,23 +19,16 @@ class TaskBoardController extends Controller
             'board' => ['nullable', 'integer', 'min:1'],
         ]);
         $currentUser = $request->session()->get('user');
-        $isAdmin = $currentUser['role'] === 'admin';
         $search = trim((string) ($validated['search'] ?? ''));
 
         try {
             $boardQuery = DB::table('helpdesk_users')
                 ->where('is_active', 1)
                 ->where('id', $validated['board'] ?? $currentUser['id']);
-            if (!$isAdmin) {
-                $boardQuery->where('role', 'staff');
-            }
             $board = $boardQuery->first(['id', 'display_name', 'username', 'role']);
             abort_unless($board, 404);
 
             $usersQuery = DB::table('helpdesk_users')->where('is_active', 1);
-            if (!$isAdmin) {
-                $usersQuery->where('role', 'staff');
-            }
             if ($search !== '') {
                 $usersQuery->where(function ($query) use ($search): void {
                     $query->where('display_name', 'like', "%{$search}%")
@@ -80,7 +73,7 @@ class TaskBoardController extends Controller
             'tasks' => $tasks,
             'search' => $search,
             'currentUserId' => (int) $currentUser['id'],
-            'canManage' => $isAdmin,
+            'canManage' => true,
         ]);
     }
 
@@ -99,8 +92,6 @@ class TaskBoardController extends Controller
                 ->where('is_active', 1)
                 ->first(['id', 'role']);
             abort_unless($board, 404);
-            abort_unless($user['role'] === 'admin' || $board->role === 'staff', 403);
-
             DB::table('helpdesk_tasks')->insert([
                 'board_user_id' => $board->id,
                 'created_by' => $user['id'],
@@ -144,11 +135,8 @@ class TaskBoardController extends Controller
         $validated = $request->validate([
             'status' => ['required', Rule::in(['todo', 'in_progress', 'finished'])],
         ]);
-        $user = $request->session()->get('user');
         $taskRecord = DB::table('helpdesk_tasks')->where('id', $task)->first(['id', 'board_user_id']);
         abort_unless($taskRecord, 404);
-        abort_unless($user['role'] === 'admin' || (int) $taskRecord->board_user_id === (int) $user['id'], 403);
-
         DB::table('helpdesk_tasks')->where('id', $task)->update([
             'status' => $validated['status'],
             'updated_at' => now(),

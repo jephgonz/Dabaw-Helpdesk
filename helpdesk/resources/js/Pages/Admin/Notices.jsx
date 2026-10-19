@@ -13,7 +13,7 @@ export default function Notices({ notices = [] }) {
         form.post(appUrl('/admin/notices'), { onSuccess: () => { form.reset(); setShowForm(false); if (fileInput.current) fileInput.current.value = ''; } });
     };
     const removeNotice = (notice) => {
-        if (window.confirm(`Remove "${notice.title}" from the staff dashboard?`)) {
+        if (window.confirm(`Remove "${notice.title}" from the public helpdesk page?`)) {
             router.post(appUrl('/admin/notices/delete'), { notice_id: notice.id });
         }
     };

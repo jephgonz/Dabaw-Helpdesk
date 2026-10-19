@@ -402,7 +402,12 @@ body .account-form .sign-in-button{font-size:14px}
 .task-card-menu .task-status-control{gap:5px;margin:0;padding:5px 7px;color:#78849a;font-size:10px}
 .task-card-menu .task-status-control select{height:29px}
 .task-column-empty{padding:11px 5px;font-size:10px}
-.task-status-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 18px}
+.task-status-summary{margin:0 0 20px}
+.task-status-summary-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}
+.task-status-summary-heading h2{margin:0;color:#35425a;font-size:14px;font-weight:650}
+.task-status-summary-heading>a{color:#607594;font-size:11px;text-decoration:none}
+.task-status-summary-heading>a:hover{color:#315e9e;text-decoration:underline}
+.task-status-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .task-status-tile{display:flex;min-height:76px;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;border:1px solid;border-radius:8px;color:#435168;text-decoration:none;transition:transform .16s ease,box-shadow .16s ease}
 .task-status-tile:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(27,43,68,.07);color:#293a56;text-decoration:none}
 .task-status-tile span{font-size:12px;font-weight:600}
@@ -414,6 +419,66 @@ body .account-form .sign-in-button{font-size:14px}
 .task-status-tile-finished{border-color:#dcebe1;background:#f6faf7}
 .task-status-tile-finished strong{color:#4e825f}
 @media(max-width:560px){.task-status-tiles{gap:7px}.task-status-tile{min-height:66px;padding:10px}.task-status-tile span{font-size:10px}.task-status-tile strong{font-size:20px}}
+.landing-topbar{position:sticky;top:0;z-index:10;display:flex;height:72px;align-items:center;justify-content:space-between;padding:0 clamp(20px,7vw,100px);border-bottom:1px solid rgba(226,232,241,.85);background:rgba(255,255,255,.94);backdrop-filter:blur(14px)}
+.landing-brand{display:flex;align-items:center;gap:10px;color:#1b2c49;font-family:Manrope,"Segoe UI",sans-serif;font-size:15px;letter-spacing:-.035em;text-decoration:none}
+.landing-brand .brand-mark{width:36px;height:36px;border-radius:10px}
+.landing-brand .brand-mark img{width:23px;height:23px;object-fit:contain}
+.landing-admin-link{display:flex;align-items:center;gap:9px;padding:9px 13px;border:1px solid #e2e7ef;border-radius:7px;color:#465875;font-size:12px;font-weight:700;text-decoration:none;transition:border-color .16s ease,background-color .16s ease}
+.landing-admin-link:hover{border-color:#cbd6e6;background:#f7f9fc;color:#244c85}
+.landing-page{background:#fff}
+.landing-hero{position:relative;display:flex;min-height:calc(100vh - 72px);align-items:center;overflow:hidden;padding:50px clamp(28px,12vw,175px);background:linear-gradient(145deg,#10254a 0%,#173968 58%,#204a77 100%);color:#fff}
+.landing-hero:before,.landing-hero:after{position:absolute;content:"";pointer-events:none;border:1px solid rgba(255,255,255,.08);border-radius:50%}
+.landing-hero:before{width:740px;height:740px;right:-260px;top:5%}
+.landing-hero:after{width:570px;height:570px;right:-175px;top:15%}
+.landing-hero-content{position:relative;z-index:1;width:min(100%,600px)}
+.landing-hero .eyebrow{color:#c2d0e7}
+.landing-hero h1{margin:22px 0 15px;font-family:Manrope,"Segoe UI",sans-serif;font-size:clamp(42px,6vw,70px);font-weight:700;line-height:1.07;letter-spacing:-.06em}
+.landing-hero-content>p{max-width:440px;margin:0;color:#c5d1e3;font-size:15px;line-height:1.8}
+.landing-primary-action{display:inline-flex;min-height:43px;align-items:center;justify-content:center;gap:12px;margin-top:24px;padding:0 16px;border:0;border-radius:7px;background:#e3b34e;color:#10254a;font:inherit;font-size:12px;font-weight:700;text-decoration:none;cursor:pointer;transition:background .16s ease,transform .16s ease}
+.landing-primary-action:hover{transform:translateY(-1px);background:#edc66f;color:#10254a;text-decoration:none}
+.landing-primary-action:disabled{opacity:.65;cursor:wait}
+.landing-hero .support-illustration{width:min(100%,440px);margin-top:30px}
+.landing-hero .ticket-card{transform:rotate(-3deg)}
+.landing-scroll-cue{position:absolute;right:clamp(28px,12vw,175px);bottom:28px;display:flex;align-items:center;gap:10px;color:#c5d1e3;font-size:11px;text-decoration:none}
+.landing-scroll-cue>span{width:7px;height:7px;border-right:1px solid #c5d1e3;border-bottom:1px solid #c5d1e3;transform:rotate(45deg) translateY(-2px)}
+.landing-report-section,.landing-notices-section{scroll-margin-top:85px;padding:88px 24px}
+.landing-report-section{background:#f7f8fb}
+.landing-section-heading{width:min(100%,680px);margin:0 auto 28px;text-align:center}
+.landing-section-heading .eyebrow{color:#5075b2}
+.landing-section-heading h2{margin:9px 0 8px;color:#1c2d49;font-family:Manrope,"Segoe UI",sans-serif;font-size:clamp(25px,3vw,34px);letter-spacing:-.045em}
+.landing-section-heading p{margin:0;color:#78849a;font-size:13px;line-height:1.7}
+.landing-report-form{display:grid;width:min(100%,680px);gap:17px;margin:0 auto;padding:26px;border:1px solid #e8ecf2;border-radius:12px;background:#fff;box-shadow:0 8px 30px rgba(24,43,75,.05)}
+.landing-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.landing-report-form label{display:grid;gap:7px;color:#34425b;font-size:12px;font-weight:700}
+.landing-report-form input,.landing-report-form textarea{width:100%;min-height:42px;padding:10px 12px;border:1px solid #dfe4ec;border-radius:7px;outline:none;background:#fff;color:#17243b;font:inherit;font-size:13px;font-weight:400}
+.landing-report-form textarea{min-height:135px;resize:vertical;line-height:1.6}
+.landing-report-form input:focus,.landing-report-form textarea:focus{border-color:#6689c4;box-shadow:0 0 0 3px rgba(36,85,166,.1)}
+.landing-report-form input::placeholder,.landing-report-form textarea::placeholder{color:#a4adba}
+.landing-report-form label>small{color:#b54141;font-size:11px;font-weight:500}
+.landing-honeypot{position:absolute!important;left:-10000px!important;width:1px!important;height:1px!important;overflow:hidden!important}
+.landing-form-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:3px}
+.landing-form-footer>small{color:#8994a5;font-size:11px}
+.landing-form-footer .landing-primary-action{flex:0 0 auto;margin:0}
+.landing-feedback{padding:11px 13px;border:1px solid;border-radius:7px;font-size:12px;line-height:1.5}
+.landing-feedback.success{border-color:#cce8da;background:#f0faf5;color:#287456}
+.landing-feedback.error{border-color:#efd4d4;background:#fff5f5;color:#a34040}
+.landing-notices-section{background:#fff}
+.landing-notice-list{display:grid;width:min(100%,820px);gap:12px;margin:0 auto}
+.landing-notice{padding:20px 22px;border:1px solid #e8ecf2;border-radius:9px;background:#fff}
+.landing-notice-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.landing-notice-heading h3{margin:0;color:#293a56;font-size:16px}
+.landing-notice-heading time{flex:0 0 auto;color:#8994a5;font-size:11px}
+.landing-notice>p{margin:11px 0;color:#53627a;font-size:13px;line-height:1.7;white-space:pre-wrap}
+.landing-notice>small{color:#8994a5;font-size:11px}
+.landing-notice-attachment{display:grid;width:max-content;max-width:100%;gap:7px;margin:12px 0;color:#315e9e;font-size:12px;font-weight:600;text-decoration:none}
+.landing-notice-attachment:hover{text-decoration:underline}
+.landing-notice-attachment img{display:block;width:min(100%,480px);max-height:480px;object-fit:contain;object-position:left top;border:1px solid #e2e7ef;border-radius:7px;background:#f7f9fc}
+.landing-empty-notices{width:min(100%,820px);margin:0 auto;padding:24px;border:1px dashed #dfe5ee;border-radius:9px;color:#8994a5;font-size:13px;text-align:center}
+.landing-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px clamp(20px,7vw,100px);background:#f7f8fb;color:#8994a5;font-size:11px}
+.landing-footer a{color:#526b90;text-decoration:none}
+.landing-footer a:hover{text-decoration:underline}
+@media(max-width:760px){.landing-topbar{height:60px;padding:0 16px}.landing-brand{font-size:13px}.landing-brand .brand-mark{width:32px;height:32px}.landing-admin-link{min-height:34px;padding:0 10px;font-size:11px}.landing-hero{min-height:calc(100svh - 60px);padding:56px 24px 85px}.landing-hero h1{font-size:clamp(39px,11vw,56px)}.landing-hero-content>p{font-size:13px}.landing-hero .support-illustration{height:160px;margin-top:24px}.landing-scroll-cue{right:24px;bottom:25px}.landing-report-section,.landing-notices-section{padding:62px 16px}.landing-report-form{gap:14px;padding:18px}.landing-form-grid{grid-template-columns:1fr;gap:14px}.landing-notice{padding:16px}.landing-notice-heading{flex-direction:column;gap:6px}.landing-form-footer{align-items:flex-start;flex-direction:column}.landing-form-footer .landing-primary-action{width:100%}.landing-footer{padding:17px 16px}}
+@media(prefers-reduced-motion:reduce){.landing-admin-link,.landing-primary-action,.landing-status-tile{transition-duration:.01ms!important;scroll-behavior:auto!important}}
 @media(max-width:1100px){.task-columns{grid-template-columns:1fr}.task-column{min-height:0}}
 @media(max-width:760px){.task-board-heading{align-items:flex-start}.task-board-heading .secondary-action{white-space:nowrap}}
 .resolution-chart-card{margin-bottom:18px;padding:22px}
@@ -626,4 +691,15 @@ body .account-form .sign-in-button{font-size:14px}
     .laravel-content .database-live-summary,.laravel-content .database-summary{grid-template-columns:1fr}
     .laravel-content .quick-links{grid-template-columns:1fr}
     .laravel-content .table-page-actions{flex-wrap:wrap}
+}
+
+html{scroll-behavior:smooth}
+button,a[href]{-webkit-tap-highlight-color:transparent;transition-property:color,background-color,border-color,box-shadow,transform,opacity;transition-duration:.18s;transition-timing-function:ease}
+button:not(:disabled):hover{transform:translateY(-1px)}
+button:not(:disabled):active{transform:translateY(0) scale(.98)}
+a[href]:active{opacity:.82}
+button:focus-visible,a[href]:focus-visible{outline:2px solid #6689c4;outline-offset:3px}
+@media(prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto}
+    *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;transition-delay:0ms!important}
 }

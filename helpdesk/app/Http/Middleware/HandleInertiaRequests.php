@@ -14,19 +14,6 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $user = $request->session()->get('user');
-        if (($user['role'] ?? null) === 'staff' && empty($user['username']) && isset($user['id'])) {
-            $username = DB::table('helpdesk_users')
-                ->where('id', $user['id'])
-                ->where('role', 'staff')
-                ->where('is_active', 1)
-                ->value('username');
-
-            if ($username !== null) {
-                $user['username'] = $username;
-                $request->session()->put('user', $user);
-            }
-        }
-
         return [
             ...parent::share($request),
             'auth' => [

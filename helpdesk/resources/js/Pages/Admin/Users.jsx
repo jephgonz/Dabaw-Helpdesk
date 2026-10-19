@@ -19,7 +19,7 @@ export default function Users({ users = [] }) {
 
     return (
         <DashboardLayout title="Staff accounts" activePage="users">
-            <div className="dashboard-title-row"><div><p className="eyebrow">ACCOUNT ADMINISTRATION</p><h1>Staff accounts</h1><p className="dashboard-subtitle">Manage who can sign in to Dabaw Helpdesk.</p></div></div>
+            <div className="dashboard-title-row"><div><p className="eyebrow">ACCOUNT ADMINISTRATION</p><h1>Staff accounts</h1><p className="dashboard-subtitle">Manage account records. Only administrator accounts can sign in.</p></div></div>
             <section className={`admin-card create-user-card collapsible-form-card${showForm ? ' is-expanded' : ''}`} id="add-account">
                 <div className="admin-card-heading collapsible-form-heading"><div><span className="step-label">NEW ACCOUNT</span><h2>Create account</h2><p>Email addresses may be shared; each staff username must be unique.</p></div><button className="secondary-action" type="button" aria-expanded={showForm} aria-controls="account-form" onClick={() => setShowForm((current) => !current)}>{showForm ? 'Close form' : '+ Add account'}</button></div>
                 <div className={`collapsible-form-content${showForm ? ' is-expanded' : ''}`} id="account-form" aria-hidden={!showForm} inert={!showForm}>

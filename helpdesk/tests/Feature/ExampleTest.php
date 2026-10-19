@@ -12,104 +12,216 @@ use Tests\TestCase;
 
 class ExampleTest extends TestCase
 {
-    public function test_root_redirects_to_login(): void
+    public function test_public_landing_page_is_rendered_at_root(): void
     {
-        $this->get('/')->assertRedirect('/login');
+        $this->get('/')->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->component('Landing/Index'));
     }
 
-    public function test_login_page_is_rendered_by_inertia(): void
-    {
-        $this->get('/login')->assertInertia(fn (Assert $page) => $page
-            ->component('Auth/Login')
-            ->where('type', 'staff'));
-    }
-
-    public function test_admin_login_view_can_be_selected(): void
-    {
-        $this->get('/login?type=admin')->assertInertia(fn (Assert $page) => $page
-            ->component('Auth/Login')
-            ->where('type', 'admin'));
-    }
-
-    public function test_admin_dashboard_requires_an_admin_session(): void
-    {
-        $this->get('/admin')->assertRedirect('/login?type=admin');
-    }
-
-    public function test_admin_notices_require_an_admin_session(): void
-    {
-        $this->get('/admin/notices')->assertRedirect('/login?type=admin');
-    }
-
-    public function test_staff_dashboard_requires_a_staff_session(): void
-    {
-        $this->get('/dashboard')->assertRedirect('/login?type=staff');
-    }
-
-    public function test_legacy_staff_session_receives_username_in_shared_profile_data(): void
+    public function test_public_landing_page_shows_latest_notices(): void
     {
         Schema::create('helpdesk_users', function ($table): void {
             $table->id();
+            $table->string('display_name');
+        });
+        Schema::create('helpdesk_notices', function ($table): void {
+            $table->id();
+            $table->unsignedBigInteger('posted_by');
+            $table->string('title');
+            $table->text('body');
+            $table->string('attachment_path')->nullable();
+            $table->timestamps();
+        });
+        DB::table('helpdesk_users')->insert(['id' => 1, 'display_name' => 'Administrator']);
+        DB::table('helpdesk_notices')->insert([
+            'id' => 1,
+            'posted_by' => 1,
+            'title' => 'Service update',
+            'body' => 'The helpdesk will be available as usual.',
+            'attachment_path' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->get('/')->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->component('Landing/Index')
+            ->has('notices', 1)
+            ->where('notices.0.title', 'Service update')
+            ->where('notices.0.author', 'Administrator'));
+
+        Schema::drop('helpdesk_notices');
+        Schema::drop('helpdesk_users');
+    }
+
+    public function test_login_url_returns_to_public_landing_page(): void
+    {
+        $this->get('/login')->assertRedirect('/');
+    }
+
+    public function test_only_administrator_login_page_is_available(): void
+    {
+        $this->get('/admin/login')->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->component('Auth/Login'));
+    }
+
+    public function test_staff_credentials_cannot_sign_in(): void
+    {
+        Schema::create('helpdesk_users', function ($table): void {
+            $table->id();
+            $table->string('display_name');
             $table->string('username')->nullable();
+            $table->string('email');
+            $table->string('password_hash');
             $table->string('role');
             $table->boolean('is_active');
         });
         DB::table('helpdesk_users')->insert([
             'id' => 1,
-            'username' => 'staff.one',
+            'display_name' => 'Staff Member',
+            'username' => 'staff.member',
+            'email' => 'staff@example.com',
+            'password_hash' => password_hash('secret', PASSWORD_DEFAULT),
             'role' => 'staff',
             'is_active' => 1,
         ]);
-        $taskMigration = require database_path('migrations/2026_10_19_000006_create_task_board_table.php');
-        $taskMigration->up();
-        foreach (['todo', 'in_progress', 'finished', 'todo'] as $status) {
-            DB::table('helpdesk_tasks')->insert([
-                'board_user_id' => 1,
-                'created_by' => 1,
-                'title' => "Task {$status}",
-                'status' => $status,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-        }
 
+        $this->from('/admin/login')->post('/admin/login', [
+            'login_action' => 'admin_login',
+            'email' => 'staff@example.com',
+            'password' => 'secret',
+        ])->assertRedirect('/admin/login')
+            ->assertSessionHasErrors('login');
+
+        $this->assertNull(session('user'));
+        Schema::drop('helpdesk_users');
+    }
+
+    public function test_admin_dashboard_requires_an_admin_session(): void
+    {
+        $this->get('/admin')->assertRedirect('/admin/login');
+    }
+
+    public function test_admin_notices_require_an_admin_session(): void
+    {
+        $this->get('/admin/notices')->assertRedirect('/admin/login');
+    }
+
+    public function test_staff_dashboard_redirects_to_public_helpdesk(): void
+    {
+        $this->get('/dashboard')->assertRedirect('/');
+    }
+
+    public function test_legacy_staff_session_is_removed_from_dashboard_access(): void
+    {
         $this->withSession(['user' => [
             'id' => 1,
             'name' => 'Staff One',
             'role' => 'staff',
         ]])->get('/dashboard')
-            ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->component('Staff/Dashboard')
-                ->where('auth.user.username', 'staff.one')
-                ->where('taskStatusCounts.todo', 2)
-                ->where('taskStatusCounts.in_progress', 1)
-                ->where('taskStatusCounts.finished', 1));
-
-        Schema::drop('helpdesk_tasks');
-        Schema::drop('helpdesk_users');
+            ->assertRedirect('/');
     }
 
-    public function test_staff_support_requests_require_a_staff_session(): void
+    public function test_staff_cannot_access_admin_task_boards(): void
     {
-        $this->get('/dashboard/requests')->assertRedirect('/login?type=staff');
+        $session = ['user' => ['id' => 1, 'name' => 'Staff One', 'username' => 'staff.one', 'role' => 'staff']];
+
+        $this->withSession($session)->get('/tasks')->assertRedirect('/admin/login');
+        $this->withSession($session)->post('/tasks', ['board_user_id' => 1, 'title' => 'Task'])->assertRedirect('/admin/login');
+        $this->withSession($session)->patch('/tasks/1/status', ['status' => 'finished'])->assertRedirect('/admin/login');
+        $this->withSession($session)->delete('/tasks/1')->assertRedirect('/admin/login');
     }
 
-    public function test_chat_is_available_to_all_roles_but_requires_login(): void
+    public function test_legacy_staff_support_route_redirects_to_public_report_form(): void
     {
-        $this->get('/chat')->assertRedirect('/login?type=staff');
+        $this->get('/dashboard/requests')->assertRedirect('/#report');
+    }
+
+    public function test_chat_is_available_only_to_logged_in_administrators(): void
+    {
+        $this->get('/chat')->assertRedirect('/admin/login');
 
         Schema::create('helpdesk_users', function ($table): void {
             $table->id();
             $table->string('role');
             $table->boolean('is_active');
         });
-        DB::table('helpdesk_users')->insert(['id' => 1, 'role' => 'staff', 'is_active' => 1]);
-        $this->withSession(['user' => ['id' => 1, 'name' => 'Staff', 'role' => 'staff']])
+        DB::table('helpdesk_users')->insert(['id' => 1, 'role' => 'admin', 'is_active' => 1]);
+        $this->withSession(['user' => ['id' => 1, 'name' => 'Admin', 'role' => 'admin']])
             ->get('/chat')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page->component('Chat/Index'));
+        $this->withSession(['user' => ['id' => 2, 'name' => 'Staff', 'role' => 'staff']])
+            ->get('/chat')
+            ->assertRedirect('/admin/login');
         Schema::drop('helpdesk_users');
+    }
+
+    public function test_public_report_can_be_submitted_without_a_staff_account(): void
+    {
+        Schema::create('helpdesk_tickets', function ($table): void {
+            $table->id();
+            $table->unsignedBigInteger('submitted_by')->nullable();
+            $table->string('requester_name', 120);
+            $table->string('requester_email', 190);
+            $table->string('subject', 160);
+            $table->text('description');
+            $table->string('status')->default('new');
+            $table->timestamp('resolved_at')->nullable();
+            $table->timestamps();
+        });
+
+        $this->post('/reports', [
+            'requester_name' => 'Public Reporter',
+            'requester_email' => 'reporter@example.com',
+            'subject' => 'Cannot access printer',
+            'description' => 'The office printer is offline.',
+            'website' => '',
+        ])->assertRedirect()
+            ->assertSessionHas('success', 'Your report was sent to the helpdesk. Thank you.');
+
+        $this->assertDatabaseHas('helpdesk_tickets', [
+            'submitted_by' => null,
+            'requester_name' => 'Public Reporter',
+            'requester_email' => 'reporter@example.com',
+            'status' => 'new',
+        ]);
+
+        Schema::drop('helpdesk_tickets');
+    }
+
+    public function test_public_report_migration_allows_null_submitter(): void
+    {
+        Schema::create('helpdesk_tickets', function ($table): void {
+            $table->id();
+            $table->unsignedBigInteger('submitted_by');
+        });
+        $migration = require database_path('migrations/2026_10_19_000007_allow_public_helpdesk_reports.php');
+        $migration->up();
+
+        DB::table('helpdesk_tickets')->insert(['submitted_by' => null]);
+        $this->assertDatabaseHas('helpdesk_tickets', ['submitted_by' => null]);
+
+        Schema::drop('helpdesk_tickets');
+    }
+
+    public function test_cache_migration_creates_laravel_database_cache_tables(): void
+    {
+        $migration = require database_path('migrations/2026_10_19_000008_create_cache_tables.php');
+        $migration->up();
+
+        $this->assertTrue(Schema::hasTable('cache'));
+        $this->assertTrue(Schema::hasTable('cache_locks'));
+        $this->assertEqualsCanonicalizing(
+            ['key', 'value', 'expiration'],
+            Schema::getColumnListing('cache')
+        );
+        $this->assertEqualsCanonicalizing(
+            ['key', 'owner', 'expiration'],
+            Schema::getColumnListing('cache_locks')
+        );
+
+        Schema::drop('cache_locks');
+        Schema::drop('cache');
     }
 
     public function test_admin_sidebar_count_is_shared_with_other_admin_views(): void
@@ -153,7 +265,7 @@ class ExampleTest extends TestCase
         Schema::drop('helpdesk_notices');
     }
 
-    public function test_admin_can_post_a_scanned_notice_and_staff_can_view_its_image(): void
+    public function test_admin_can_post_a_scanned_notice_and_public_can_view_its_image(): void
     {
         Schema::create('helpdesk_users', function ($table): void {
             $table->id();
@@ -195,7 +307,7 @@ class ExampleTest extends TestCase
             'name' => 'Staff',
             'email' => 'staff@example.com',
             'role' => 'staff',
-        ]])->get("/dashboard/notices/{$notice->id}/attachment")
+        ]])->get("/notices/{$notice->id}/attachment")
             ->assertOk()
             ->assertHeader('Content-Type', 'image/png');
 
@@ -213,9 +325,10 @@ class ExampleTest extends TestCase
         });
         DB::table('helpdesk_users')->insert([
             ['id' => 1, 'display_name' => 'Admin', 'role' => 'admin', 'is_active' => 1],
-            ['id' => 2, 'display_name' => 'Staff', 'role' => 'staff', 'is_active' => 1],
+            ['id' => 2, 'display_name' => 'Other Admin', 'role' => 'admin', 'is_active' => 1],
             ['id' => 3, 'display_name' => 'Other staff', 'role' => 'staff', 'is_active' => 1],
             ['id' => 4, 'display_name' => 'Inactive staff', 'role' => 'staff', 'is_active' => 0],
+            ['id' => 5, 'display_name' => 'Third Admin', 'role' => 'admin', 'is_active' => 1],
         ]);
         $encryptedMigration = require database_path('migrations/2026_10_19_000003_create_encrypted_chat_tables.php');
         $encryptedMigration->up();
@@ -229,13 +342,13 @@ class ExampleTest extends TestCase
             ->assertOk()
             ->assertJsonStructure(['csrfToken'])
             ->assertJsonCount(2, 'users')
-            ->assertJsonPath('users.0.name', 'Other staff');
+            ->assertJsonPath('users.0.name', 'Other Admin');
 
         $conversationId = $this->withSession(['user' => ['id' => 1, 'name' => 'Admin', 'role' => 'admin']])
             ->postJson('/chat/conversations', ['user_id' => 2])
             ->assertCreated()
             ->json('conversation_id');
-        $sameConversationId = $this->withSession(['user' => ['id' => 2, 'name' => 'Staff', 'role' => 'staff']])
+        $sameConversationId = $this->withSession(['user' => ['id' => 2, 'name' => 'Other Admin', 'role' => 'admin']])
             ->postJson('/chat/conversations', ['user_id' => 1])
             ->assertCreated()
             ->json('conversation_id');
@@ -252,84 +365,23 @@ class ExampleTest extends TestCase
             'body' => 'Hello from the server-stored chat.',
         ]);
 
-        $this->withSession(['user' => ['id' => 2, 'name' => 'Staff', 'role' => 'staff']])
+        $this->withSession(['user' => ['id' => 2, 'name' => 'Other Admin', 'role' => 'admin']])
             ->getJson("/chat/conversations/{$conversationId}/messages")
             ->assertOk()
             ->assertJsonPath('messages.0.id', $messageId)
             ->assertJsonPath('messages.0.body', 'Hello from the server-stored chat.');
-        $this->withSession(['user' => ['id' => 3, 'name' => 'Other staff', 'role' => 'staff']])
+        $this->withSession(['user' => ['id' => 5, 'name' => 'Third Admin', 'role' => 'admin']])
             ->getJson("/chat/conversations/{$conversationId}/messages")
             ->assertNotFound();
+        $this->withSession(['user' => ['id' => 3, 'name' => 'Other staff', 'role' => 'staff']])
+            ->getJson('/chat/state')
+            ->assertRedirect('/admin/login');
         $this->assertFalse(Schema::hasTable('chat_devices'));
         $this->assertFalse(Schema::hasTable('chat_message_keys'));
         $this->assertFalse(Schema::hasTable('chat_participants'));
 
         Schema::drop('chat_messages');
         Schema::drop('chat_conversations');
-        Schema::drop('helpdesk_users');
-    }
-
-    public function test_staff_can_add_to_staff_boards_but_only_board_owner_can_change_task_status(): void
-    {
-        Schema::create('helpdesk_users', function ($table): void {
-            $table->id();
-            $table->string('display_name');
-            $table->string('username')->nullable();
-            $table->string('role');
-            $table->boolean('is_active');
-        });
-        DB::table('helpdesk_users')->insert([
-            ['id' => 1, 'display_name' => 'Admin One', 'username' => null, 'role' => 'admin', 'is_active' => 1],
-            ['id' => 2, 'display_name' => 'Staff Owner', 'username' => 'owner', 'role' => 'staff', 'is_active' => 1],
-            ['id' => 3, 'display_name' => 'Staff Peer', 'username' => 'peer', 'role' => 'staff', 'is_active' => 1],
-        ]);
-        $migration = require database_path('migrations/2026_10_19_000006_create_task_board_table.php');
-        $migration->up();
-
-        $this->withSession(['user' => ['id' => 3, 'name' => 'Staff Peer', 'role' => 'staff']])
-            ->get('/tasks?search=Owner')
-            ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->component('Tasks/Index')
-                ->where('board.id', 3)
-                ->where('users.0.username', 'owner')
-                ->missing('users.0.email'));
-
-        $this->withSession(['user' => ['id' => 3, 'name' => 'Staff Peer', 'role' => 'staff']])
-            ->get('/tasks?board=1')
-            ->assertNotFound();
-
-        $this->withSession(['user' => ['id' => 3, 'name' => 'Staff Peer', 'role' => 'staff']])
-            ->post('/tasks', ['board_user_id' => 1, 'title' => 'Admin task'])
-            ->assertForbidden();
-
-        $this->withSession(['user' => ['id' => 3, 'name' => 'Staff Peer', 'role' => 'staff']])
-            ->post('/tasks', [
-                'board_user_id' => 2,
-                'title' => 'Prepare report',
-                'description' => 'Gather this week’s figures.',
-            ])->assertRedirect()
-            ->assertSessionHas('success', 'Task added to the board.');
-
-        $taskId = (int) DB::table('helpdesk_tasks')->value('id');
-        $this->assertDatabaseHas('helpdesk_tasks', [
-            'id' => $taskId,
-            'board_user_id' => 2,
-            'created_by' => 3,
-            'status' => 'todo',
-        ]);
-
-        $this->withSession(['user' => ['id' => 3, 'name' => 'Staff Peer', 'role' => 'staff']])
-            ->patch("/tasks/{$taskId}/status", ['status' => 'in_progress'])
-            ->assertForbidden();
-
-        $this->withSession(['user' => ['id' => 2, 'name' => 'Staff Owner', 'role' => 'staff']])
-            ->patch("/tasks/{$taskId}/status", ['status' => 'in_progress'])
-            ->assertRedirect()
-            ->assertSessionHas('success', 'Task status updated.');
-
-        $this->assertDatabaseHas('helpdesk_tasks', ['id' => $taskId, 'status' => 'in_progress']);
-        Schema::drop('helpdesk_tasks');
         Schema::drop('helpdesk_users');
     }
 
@@ -413,7 +465,7 @@ class ExampleTest extends TestCase
             'display_name' => 'Updated Name',
             'username' => 'updated.staff',
             'email' => 'same@example.com',
-        ])->assertForbidden();
+        ])->assertRedirect('/admin/login');
 
         $this->assertDatabaseHas('helpdesk_users', [
             'id' => 1,

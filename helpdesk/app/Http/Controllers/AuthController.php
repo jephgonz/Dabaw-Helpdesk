@@ -14,36 +14,30 @@ class AuthController extends Controller
     public function show(Request $request): Response|RedirectResponse
     {
         $user = $request->session()->get('user');
+        if (($user['role'] ?? null) === 'admin') {
+            return redirect('/admin');
+        }
         if ($user) {
-            return redirect($user['role'] === 'admin' ? '/admin' : '/dashboard');
+            $request->session()->forget('user');
         }
 
-        $type = $request->query('type', 'staff');
-
-        return Inertia::render('Auth/Login', [
-            'type' => in_array($type, ['admin', 'staff'], true) ? $type : 'staff',
-        ]);
+        return Inertia::render('Auth/Login');
     }
 
     public function login(Request $request): RedirectResponse
     {
-        $type = $request->input('login_action') === 'admin_login' ? 'admin' : 'staff';
         $validated = $request->validate([
-            'login_action' => ['required', 'in:staff_login,admin_login'],
+            'login_action' => ['required', 'in:admin_login'],
             'password' => ['required', 'string', 'max:4096'],
-            'username' => ['required_if:login_action,staff_login', 'nullable', 'string', 'max:80'],
-            'email' => ['required_if:login_action,admin_login', 'nullable', 'email', 'max:190'],
+            'email' => ['required', 'email', 'max:190'],
         ]);
 
         try {
-            $query = DB::table('helpdesk_users')
-                ->where('role', $type)
+            $candidates = DB::table('helpdesk_users')
+                ->where('role', 'admin')
                 ->where('is_active', 1);
-            $identifier = $type === 'admin'
-                ? strtolower(trim((string) $validated['email']))
-                : strtolower(trim((string) $validated['username']));
-            $candidates = $query
-                ->where($type === 'admin' ? 'email' : 'username', $identifier)
+            $candidates = $candidates
+                ->where('email', strtolower(trim((string) $validated['email'])))
                 ->orderBy('id')
                 ->get(['id', 'display_name', 'username', 'email', 'password_hash', 'role']);
 
@@ -58,21 +52,19 @@ class AuthController extends Controller
                         'role' => (string) $candidate->role,
                     ]);
 
-                    return redirect($type === 'admin' ? '/admin' : '/dashboard');
+                    return redirect('/admin');
                 }
             }
         } catch (\Throwable $exception) {
             Log::error('Helpdesk sign-in failed.', ['exception' => $exception]);
             return back()->withErrors([
                 'login' => 'The sign-in service is unavailable. Check the local database configuration.',
-            ])->onlyInput('email', 'username');
+            ])->onlyInput('email');
         }
 
         return back()->withErrors([
-            'login' => $type === 'admin'
-                ? 'The administrator email or password is incorrect, or this account is inactive.'
-                : 'The username or password is incorrect, or this account is inactive.',
-        ])->onlyInput('email', 'username');
+            'login' => 'The administrator email or password is incorrect, or this account is inactive.',
+        ])->onlyInput('email');
     }
 
     public function logout(Request $request): RedirectResponse
@@ -102,6 +94,6 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('login');
+        return redirect()->route('home');
     }
 }

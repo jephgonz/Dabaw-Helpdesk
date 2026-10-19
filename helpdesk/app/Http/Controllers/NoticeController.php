@@ -30,7 +30,7 @@ class NoticeController extends Controller
                 ]);
             $notices->each(function (object $notice): void {
                 $notice->attachment_url = $notice->attachment_path
-                    ? route('admin.notices.attachment', ['notice' => $notice->id])
+                    ? route('notices.attachment', ['notice' => $notice->id])
                     : null;
                 unset($notice->attachment_path);
             });
@@ -77,7 +77,7 @@ class NoticeController extends Controller
             return back()->withErrors(['form' => 'The notice could not be posted. Check the database connection and schema.']);
         }
 
-        return back()->with('success', 'Notice posted to the staff dashboard.');
+        return back()->with('success', 'Notice published on the public helpdesk page.');
     }
 
     public function attachment(int $notice)
@@ -114,6 +114,6 @@ class NoticeController extends Controller
             return back()->withErrors(['form' => 'The notice could not be deleted.']);
         }
 
-        return back()->with('success', 'Notice removed from the staff dashboard.');
+        return back()->with('success', 'Notice removed from the public helpdesk page.');
     }
 }

@@ -204,7 +204,7 @@ class DatabaseController extends Controller
         $filename = preg_replace('/[^A-Za-z0-9._-]+/', '-', $database) ?: 'database';
 
         return response()->streamDownload(function () use ($pdo, $tables, $database): void {
-            echo "-- Dabaw Helpdesk MySQL database export\n-- Database: {$database}\n-- Includes credentials and application data; store securely.\n\nSET NAMES utf8mb4;\nSET FOREIGN_KEY_CHECKS = 0;\n\n";
+            echo "-- Jephthah Helpdesk MySQL database export\n-- Database: {$database}\n-- Includes credentials and application data; store securely.\n\nSET NAMES utf8mb4;\nSET FOREIGN_KEY_CHECKS = 0;\n\n";
             foreach ($tables as $table) {
                 $quoted = $this->quote((string) $table);
                 $create = $pdo->query("SHOW CREATE TABLE {$quoted}")->fetch(PDO::FETCH_NUM);

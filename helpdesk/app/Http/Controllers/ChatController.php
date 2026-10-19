@@ -20,6 +20,7 @@ class ChatController extends Controller
         $userId = (int) $request->session()->get('user.id');
         $users = DB::table('helpdesk_users')
             ->where('is_active', 1)
+            ->where('role', 'admin')
             ->where('id', '<>', $userId)
             ->orderBy('display_name')
             ->get(['id', 'display_name', 'role'])
@@ -33,8 +34,11 @@ class ChatController extends Controller
         $conversations = DB::table('chat_conversations')
             ->join('helpdesk_users as user_one', 'user_one.id', '=', 'chat_conversations.user_one_id')
             ->join('helpdesk_users as user_two', 'user_two.id', '=', 'chat_conversations.user_two_id')
-            ->where(static fn ($query) => $query->where('chat_conversations.user_one_id', $userId)
-                ->orWhere('chat_conversations.user_two_id', $userId))
+            ->where(static fn ($query) => $query
+                ->where(static fn ($query) => $query->where('chat_conversations.user_one_id', $userId)
+                    ->where('user_two.role', 'admin'))
+                ->orWhere(static fn ($query) => $query->where('chat_conversations.user_two_id', $userId)
+                    ->where('user_one.role', 'admin')))
             ->orderByDesc('chat_conversations.updated_at')
             ->get([
                 'chat_conversations.id',
@@ -81,7 +85,11 @@ class ChatController extends Controller
         $userId = (int) $request->session()->get('user.id');
         $otherUserId = (int) $validated['user_id'];
         abort_if($otherUserId === $userId, 422, 'Choose another account to start a conversation.');
-        abort_unless(DB::table('helpdesk_users')->where('id', $otherUserId)->where('is_active', 1)->exists(), 422, 'This account is inactive.');
+        abort_unless(DB::table('helpdesk_users')
+            ->where('id', $otherUserId)
+            ->where('role', 'admin')
+            ->where('is_active', 1)
+            ->exists(), 422, 'This account is unavailable.');
 
         $userOneId = min($userId, $otherUserId);
         $userTwoId = max($userId, $otherUserId);

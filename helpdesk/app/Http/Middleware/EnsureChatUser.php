@@ -14,14 +14,14 @@ class EnsureChatUser
     {
         $user = $request->session()->get('user');
         $role = $user['role'] ?? null;
-        if (!in_array($role, ['admin', 'staff'], true)) {
-            return redirect()->route('login', ['type' => 'staff']);
+        if ($role !== 'admin') {
+            return redirect()->route('admin.login');
         }
 
         try {
             $active = DB::table('helpdesk_users')
                 ->where('id', $user['id'] ?? 0)
-                ->where('role', $role)
+                ->where('role', 'admin')
                 ->where('is_active', 1)
                 ->exists();
         } catch (\Throwable $exception) {
@@ -32,7 +32,7 @@ class EnsureChatUser
         if (!$active) {
             $request->session()->forget('user');
 
-            return redirect()->route('login', ['type' => $role]);
+            return redirect()->route('admin.login');
         }
 
         return $next($request);
