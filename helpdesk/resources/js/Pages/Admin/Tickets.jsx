@@ -17,7 +17,7 @@ export default function Tickets({ tickets = [], newTicketCount = 0 }) {
     return (
         <DashboardLayout title="Support requests" activePage="tickets">
             <div className="dashboard-title-row"><div><p className="eyebrow">IT SUPPORT</p><h1>Support requests</h1><p className="dashboard-subtitle">Reports submitted through the public helpdesk page.</p></div></div>
-            <section className="admin-card accounts-card directory-card staff-reports-card">
+            <section className="admin-card accounts-card directory-card ticket-inbox-card">
                 <div className="admin-card-heading accounts-heading"><div><span className="step-label">PUBLIC REPORT INBOX</span><h2>Support reports</h2><p>New reports are shown first. Update each report as you work on it.</p></div><span className="account-count">{newTicketCount} new</span></div>
                 {tickets.length === 0 ? <div className="empty-state"><span>✓</span><strong>No support requests</strong><small>New public reports will appear here.</small></div> :
                     <div className="table-wrap"><table className="support-ticket-table"><thead><tr><th>Request</th><th>Reported by</th><th>Details</th><th>Status</th><th>Submitted</th><th>Update status</th></tr></thead><tbody>

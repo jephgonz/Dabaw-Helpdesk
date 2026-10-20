@@ -43,9 +43,9 @@ try {
         $pdo->exec('ALTER TABLE helpdesk_users DROP INDEX uq_helpdesk_users_email');
     }
 
-    $pdo->exec("ALTER TABLE helpdesk_users MODIFY role ENUM('admin', 'agent', 'staff') NOT NULL DEFAULT 'staff'");
+    $pdo->exec("ALTER TABLE helpdesk_users MODIFY role ENUM('admin', 'agent', 'staff') NOT NULL DEFAULT 'admin'");
     $pdo->exec("UPDATE helpdesk_users SET role = 'staff' WHERE role = 'agent'");
-    $pdo->exec("ALTER TABLE helpdesk_users MODIFY role ENUM('admin', 'staff') NOT NULL DEFAULT 'staff'");
+    $pdo->exec("ALTER TABLE helpdesk_users MODIFY role ENUM('admin', 'staff') NOT NULL DEFAULT 'admin'");
     $roleType = $pdo->query("SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'helpdesk_users' AND COLUMN_NAME = 'role'")->fetchColumn();
     if (strtolower((string) $roleType) !== "enum('admin','staff')") {
         throw new RuntimeException('The helpdesk role column does not have the expected admin/staff values.');

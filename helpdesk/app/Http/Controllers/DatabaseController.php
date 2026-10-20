@@ -381,6 +381,12 @@ class DatabaseController extends Controller
             if (!in_array($final['role'], ['admin', 'staff'], true) || !in_array($final['is_active'], [0, 1], true)) {
                 throw new RuntimeException('Choose a valid role and account status.');
             }
+            if ($final['role'] !== $user->role) {
+                throw new RuntimeException('Account roles cannot be changed in the database editor.');
+            }
+            if ($final['role'] === 'staff' && $final['is_active'] !== 0) {
+                throw new RuntimeException('Legacy staff accounts must remain inactive.');
+            }
             if ($final['role'] === 'staff' && !preg_match('/^[a-z0-9][a-z0-9._-]{2,79}$/', $final['username'])) {
                 throw new RuntimeException('Staff usernames must be 3–80 characters and use letters, numbers, dots, underscores, or hyphens.');
             }

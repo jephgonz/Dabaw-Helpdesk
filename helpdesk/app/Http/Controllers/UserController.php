@@ -21,7 +21,7 @@ class UserController extends Controller
                 ->orderByDesc('created_at')
                 ->get();
         } catch (\Throwable $exception) {
-            Log::error('Staff account directory could not load.', ['exception' => $exception]);
+            Log::error('Admin account directory could not load.', ['exception' => $exception]);
             $users = collect();
             session()->flash('error', 'The user directory is unavailable. Check the database connection.');
         }
@@ -37,25 +37,16 @@ class UserController extends Controller
         $validated = $request->validate([
             'display_name' => ['required', 'string', 'max:120'],
             'email' => ['required', 'email', 'max:190'],
-            'username' => ['nullable', 'string', 'min:3', 'max:80', 'regex:/^[a-z0-9][a-z0-9._-]*$/', Rule::unique('helpdesk_users', 'username')],
             'password' => ['required', 'string', 'min:12', 'max:4096'],
-            'role' => ['required', Rule::in(['admin', 'staff'])],
         ]);
-
-        if ($validated['role'] === 'staff' && empty($validated['username'])) {
-            return back()->withErrors(['username' => 'Staff accounts need a unique username.'])->withInput();
-        }
-        if ($validated['role'] === 'admin' && !empty($validated['username'])) {
-            return back()->withErrors(['username' => 'Administrator accounts do not use a staff username.'])->withInput();
-        }
 
         try {
             DB::table('helpdesk_users')->insert([
                 'display_name' => trim($validated['display_name']),
-                'username' => $validated['role'] === 'staff' ? strtolower($validated['username']) : null,
+                'username' => null,
                 'email' => strtolower($validated['email']),
                 'password_hash' => Hash::make($validated['password']),
-                'role' => $validated['role'],
+                'role' => 'admin',
                 'is_active' => 1,
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -82,6 +73,9 @@ class UserController extends Controller
                 $target = DB::table('helpdesk_users')->where('id', $validated['user_id'])->lockForUpdate()->first();
                 if (!$target) {
                     throw new \RuntimeException('Account not found.');
+                }
+                if ($active && $target->role !== 'admin') {
+                    throw new \RuntimeException('Legacy staff accounts cannot be reactivated.');
                 }
                 if (!$active && (int) $target->id === $adminId) {
                     throw new \RuntimeException('You cannot deactivate your own account.');

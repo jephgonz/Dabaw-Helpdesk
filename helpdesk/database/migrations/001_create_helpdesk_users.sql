@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS helpdesk_users (
     display_name VARCHAR(120) NOT NULL,
     email VARCHAR(190) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    role ENUM('admin', 'staff') NOT NULL DEFAULT 'staff',
+    role ENUM('admin', 'staff') NOT NULL DEFAULT 'admin',
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

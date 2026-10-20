@@ -1,14 +1,13 @@
 <?php
 
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\ChatController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DatabaseController;
 use App\Http\Controllers\IdGeneratorController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\NoticeController;
 use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\TaskBoardController;
+use App\Http\Controllers\MonthlyAllocationController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
@@ -47,22 +46,10 @@ Route::middleware('admin')->prefix('admin')->name('admin.')->group(function (): 
     Route::post('/tools/id-generator', [IdGeneratorController::class, 'generate'])->name('tools.id-generator.generate');
     Route::get('/tools/id-generator/preview/{file}', [IdGeneratorController::class, 'preview'])->name('tools.id-generator.preview');
     Route::get('/tools/id-generator/download/{file}', [IdGeneratorController::class, 'download'])->name('tools.id-generator.download');
+    Route::get('/tools/monthly-allocation', [MonthlyAllocationController::class, 'index'])->name('tools.monthly-allocation');
+    Route::post('/tools/monthly-allocation/download', [MonthlyAllocationController::class, 'download'])
+        ->middleware('throttle:3,1')
+        ->name('tools.monthly-allocation.download');
 });
 
-Route::middleware('chat')->prefix('chat')->name('chat.')->group(function (): void {
-    Route::get('/', [ChatController::class, 'index'])->name('index');
-    Route::get('/state', [ChatController::class, 'state'])->name('state');
-    Route::post('/conversations', [ChatController::class, 'createConversation'])->name('conversations');
-    Route::get('/conversations/{conversation}/messages', [ChatController::class, 'messages'])->name('conversations.messages');
-    Route::post('/conversations/{conversation}/messages', [ChatController::class, 'send'])->name('conversations.messages.send');
-});
-
-Route::middleware('admin')->group(function (): void {
-    Route::get('/tasks', [TaskBoardController::class, 'index'])->name('tasks.index');
-    Route::post('/tasks', [TaskBoardController::class, 'store'])->name('tasks.store');
-    Route::post('/tasks/{task}/update', [TaskBoardController::class, 'update'])->name('tasks.update');
-    Route::patch('/tasks/{task}/status', [TaskBoardController::class, 'updateStatus'])->name('tasks.status');
-    Route::delete('/tasks/{task}', [TaskBoardController::class, 'destroy'])->name('tasks.destroy');
-});
-
-Route::post('/profile', [ProfileController::class, 'update'])->middleware('chat')->name('profile.update');
+Route::post('/profile', [ProfileController::class, 'update'])->middleware('admin')->name('profile.update');

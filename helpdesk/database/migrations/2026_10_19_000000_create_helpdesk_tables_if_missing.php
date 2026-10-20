@@ -15,7 +15,7 @@ return new class extends Migration
                 $table->string('username', 80)->nullable()->unique();
                 $table->string('email', 190);
                 $table->string('password_hash');
-                $table->enum('role', ['admin', 'staff'])->default('staff');
+                $table->enum('role', ['admin', 'staff'])->default('admin');
                 $table->boolean('is_active')->default(true);
                 $table->timestamp('created_at')->useCurrent();
                 $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();

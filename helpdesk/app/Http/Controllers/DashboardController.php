@@ -36,34 +36,8 @@ class DashboardController extends Controller
         return Inertia::render('Admin/Dashboard', [
             'users' => $users,
             'ticketCounts' => $ticketCounts,
-            'taskStatusCounts' => $this->taskStatusCounts(),
             'newTicketCount' => $newTicketCount,
             'activePage' => 'overview',
         ]);
     }
-
-    private function taskStatusCounts(?int $boardUserId = null): array
-    {
-        try {
-            $query = DB::table('helpdesk_tasks')
-                ->select('status', DB::raw('COUNT(*) as total'));
-            if ($boardUserId !== null) {
-                $query->where('board_user_id', $boardUserId);
-            }
-
-            $counts = $query->groupBy('status')->pluck('total', 'status');
-
-            return [
-                'todo' => (int) ($counts['todo'] ?? 0),
-                'in_progress' => (int) ($counts['in_progress'] ?? 0),
-                'finished' => (int) ($counts['finished'] ?? 0),
-            ];
-        } catch (\Throwable $exception) {
-            Log::error('Task board summary could not load.', ['board_user_id' => $boardUserId, 'exception' => $exception]);
-            session()->flash('error', 'The task board summary is unavailable. Check that the task board migration has been applied.');
-
-            return ['todo' => 0, 'in_progress' => 0, 'finished' => 0];
-        }
-    }
-
 }

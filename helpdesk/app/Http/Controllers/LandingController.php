@@ -36,6 +36,21 @@ class LandingController extends Controller
             session()->flash('error', 'Notices are temporarily unavailable.');
         }
 
-        return Inertia::render('Landing/Index', ['notices' => $notices]);
+        try {
+            $ticketStats = DB::table('helpdesk_tickets')
+                ->selectRaw(
+                    "COUNT(*) as total, SUM(status = 'resolved') as resolved, SUM(status = 'in_progress') as in_progress, SUM(status = 'new') as new_count"
+                )
+                ->first();
+        } catch (\Throwable $exception) {
+            Log::error('Public support overview could not load.', ['exception' => $exception]);
+            $ticketStats = (object) ['total' => 0, 'resolved' => 0, 'in_progress' => 0, 'new_count' => 0];
+            session()->flash('error', 'The support overview is temporarily unavailable.');
+        }
+
+        return Inertia::render('Landing/Index', [
+            'notices' => $notices,
+            'ticketStats' => $ticketStats,
+        ]);
     }
 }

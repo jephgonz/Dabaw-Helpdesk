@@ -6,7 +6,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Validation\Rule;
 
 class ProfileController extends Controller
 {
@@ -20,19 +19,10 @@ class ProfileController extends Controller
         $validated = $request->validate([
             'display_name' => ['required', 'string', 'max:120'],
             'email' => ['required', 'email', 'max:190'],
-            'username' => [
-                $role === 'staff' ? 'required' : 'nullable',
-                'string',
-                'min:3',
-                'max:80',
-                'regex:/^[a-z0-9][a-z0-9._-]*$/',
-                Rule::unique('helpdesk_users', 'username')->ignore($userId),
-            ],
         ]);
 
         $displayName = trim($validated['display_name']);
         $email = strtolower(trim($validated['email']));
-        $username = $role === 'staff' ? strtolower(trim((string) $validated['username'])) : null;
 
         try {
             $updated = DB::table('helpdesk_users')
@@ -42,7 +32,6 @@ class ProfileController extends Controller
                 ->update([
                     'display_name' => $displayName,
                     'email' => $email,
-                    'username' => $username,
                     'updated_at' => now(),
                 ]);
             if ($updated === 0 && !DB::table('helpdesk_users')->where('id', $userId)->where('is_active', 1)->exists()) {
@@ -58,7 +47,6 @@ class ProfileController extends Controller
             ...$user,
             'name' => $displayName,
             'email' => $email,
-            'username' => $username,
         ]);
 
         return back()->with('success', 'Profile updated.');
