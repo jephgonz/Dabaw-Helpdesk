@@ -1,11 +1,19 @@
 # Jephthah's Workbench
 
-Jephthah's Workbench uses Laravel 12 with Inertia.js and React. Sign in at `/` to access the administrator workspace, which includes task management, administrator accounts, database tools, the SP ID Generator, and monthly CSV allocation. Existing administrator accounts remain in the `helpdesk_users` MySQL table.
+Jephthah's Workbench uses Laravel 12 with Inertia.js and React. Sign in at `/` to access the administrator workspace, which includes task management, administrator accounts, database tools, the SP ID Generator, and monthly CSV allocation. The app uses a local SQLite database at `database/database.sqlite`; this file is gitignored and must be kept private. Existing records were copied from the previously configured MySQL database without changing the source database.
 
 ## Local setup
 
 1. Copy `.env.example` to `.env` only when there is no existing environment file. Preserve the current `.env` and database settings when upgrading.
-2. Set the MySQL credentials and CA certificate path. For the current XAMPP URL, use `APP_URL=http://localhost/helpdesk` and `ASSET_URL=/helpdesk/public`.
+2. The default configuration uses the project-local SQLite database. For a new installation, create the database file before running migrations:
+
+   ```powershell
+   if (!(Test-Path database\database.sqlite)) {
+       New-Item -ItemType File -Path database\database.sqlite | Out-Null
+   }
+   ```
+
+   Keep `DB_CONNECTION=sqlite` so local SQLite remains the application's primary database. For the current XAMPP URL, use `APP_URL=http://localhost/helpdesk` and `ASSET_URL=/helpdesk/public`. Configure the Aiven MySQL connection variables (`MYSQL_DATABASE`, `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, and `DB_SSL_CA`) for the database-panel backup and restore actions.
 3. Install dependencies and build the React UI:
 
    ```powershell
@@ -34,7 +42,7 @@ Migration `2026_10_20_000001_remove_task_board_feature` permanently removes the 
 
 Laravel uses the file cache by default, including for request throttling. The database cache and lock tables are not needed. If `.env` explicitly sets `CACHE_STORE=database`, change it to `CACHE_STORE=file` before migrating. Migration `2026_10_20_000002_remove_database_cache_tables` permanently drops `cache` and `cache_locks`; existing cached values are discarded.
 
-The SQL tools back up the configured Laravel database, including its migration history, as portable MySQL SQL. Restores are limited to 25 MB, require explicit replacement confirmation, and apply any pending Laravel migrations after import. Imports accept table definitions and data only; database-level commands, routines, and triggers are not imported. Export files contain password hashes and other sensitive data; keep them private.
+Local SQLite is the application's primary database; Aiven MySQL is used as a backup copy, not for normal app traffic. In the database panel, **Back up local to Aiven** replaces Aiven's managed table data with local data, and **Restore Aiven to local** replaces local managed data with Aiven's copy. Both operations require reviewing a preview and confirming; the destination is snapshotted first. The panel compares the copies and indicates whether Aiven is current, outdated, or needs attention. Cloning covers users, settings, notification settings, accomplishments, and Laravel migration history; both databases must have matching schemas, and MySQL tables must use InnoDB. Each managed table is capped at 20,000 rows per database. Private pre-clone snapshots are stored under `storage/app/private/database-backups`; snapshots and database exports may contain password hashes and other sensitive data, so keep them private. The database tools also export the local SQLite database as a `.sqlite` file. Restore a standalone SQLite export by stopping the app and replacing `database/database.sqlite`.
 
 The SP ID Generator is part of the Laravel admin application. Its React page is in `resources/js/Pages/Admin/IdGenerator.jsx`, and its GD-based card composition is in `app/Services/IdCardGenerator.php`. The card template and required fonts remain under `public/tools/sp-id-generator/img`; PHP GD with FreeType support must be enabled to generate cards. The old `/tools/sp-id-generator/` URL redirects to the admin page.
 

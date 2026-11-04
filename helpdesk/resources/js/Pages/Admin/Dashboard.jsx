@@ -3,15 +3,12 @@ import { Link } from '@inertiajs/react';
 import DashboardLayout from '../../Components/DashboardLayout';
 import { appUrl } from '../../url';
 
-export default function Dashboard({ users = [], openTaskCount = 0, pendingTaskCount = 0, completedThisQuarterCount = 0, pendingTasks = [] }) {
-    const activeCount = users.filter((user) => Number(user.is_active) === 1).length;
-    const adminCount = users.filter((user) => user.role === 'admin').length;
+export default function Dashboard({ accountCounts = { total: 0, active: 0, administrators: 0 }, openTaskCount = 0, pendingTaskCount = 0, completedThisQuarterCount = 0, pendingTasks = [] }) {
     const shortcuts = [
         ['/admin/users', '＋', 'Create admin account', 'Add an administrator and manage access.'],
         ['/admin/users', '♙', 'Admin accounts', 'Review administrator account status.'],
         ['/admin/database', '▤', 'MySQL database', 'View connection status, tables, and backups.'],
     ];
-
     return (
         <DashboardLayout title="Administration" activePage="overview">
             <div className="overview-page">
@@ -36,9 +33,9 @@ export default function Dashboard({ users = [], openTaskCount = 0, pendingTaskCo
                         </li>)}</ul>}
                 </section>
                 <section className="stat-grid" aria-label="Account summary">
-                    <article className="stat-card"><span className="stat-icon blue">♙</span><span className="stat-label">Total accounts</span><strong>{users.length}</strong><small>Workbench users</small></article>
-                    <article className="stat-card"><span className="stat-icon green">✓</span><span className="stat-label">Active accounts</span><strong>{activeCount}</strong><small>Can sign in</small></article>
-                    <article className="stat-card"><span className="stat-icon gold">♜</span><span className="stat-label">Administrators</span><strong>{adminCount}</strong><small>Can manage accounts</small></article>
+                    <article className="stat-card"><span className="stat-icon blue">♙</span><span className="stat-label">Total accounts</span><strong>{accountCounts.total}</strong><small>Workbench users</small></article>
+                    <article className="stat-card"><span className="stat-icon green">✓</span><span className="stat-label">Active accounts</span><strong>{accountCounts.active}</strong><small>Can sign in</small></article>
+                    <article className="stat-card"><span className="stat-icon gold">♜</span><span className="stat-label">Administrators</span><strong>{accountCounts.administrators}</strong><small>Can manage accounts</small></article>
                 </section>
                 <section className="quick-links" aria-label="Admin shortcuts">
                     {shortcuts.map(([href, icon, title, description]) => <Link className="quick-link" href={appUrl(href)} key={title}><span className="quick-link-icon">{icon}</span><span><strong>{title}</strong><small>{description}</small></span><span className="quick-link-arrow">→</span></Link>)}

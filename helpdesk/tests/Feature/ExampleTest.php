@@ -154,6 +154,9 @@ class ExampleTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Admin/Dashboard')
+                ->where('accountCounts.total', 2)
+                ->where('accountCounts.active', 2)
+                ->where('accountCounts.administrators', 2)
                 ->where('openTaskCount', 2)
                 ->where('pendingTaskCount', 2)
                 ->where('completedThisQuarterCount', 1)
@@ -536,6 +539,31 @@ class ExampleTest extends TestCase
         $this->assertFalse(Schema::hasTable('helpdesk_accomplishments'));
     }
 
+    public function test_accomplishment_due_date_index_migration_is_safe_to_rerun(): void
+    {
+        Schema::create('helpdesk_accomplishments', function ($table): void {
+            $table->id();
+            $table->unsignedBigInteger('created_by');
+            $table->string('status');
+            $table->date('due_date')->nullable();
+        });
+
+        $migration = require database_path('migrations/2026_11_04_000002_add_accomplishment_due_date_index.php');
+        $migration->up();
+        $migration->up();
+
+        $matchingIndexes = collect(Schema::getIndexes('helpdesk_accomplishments'))
+            ->filter(fn (array $index): bool => $index['columns'] === ['created_by', 'status', 'due_date']);
+        $this->assertCount(1, $matchingIndexes);
+
+        $migration->down();
+        $matchingIndexes = collect(Schema::getIndexes('helpdesk_accomplishments'))
+            ->filter(fn (array $index): bool => $index['columns'] === ['created_by', 'status', 'due_date']);
+        $this->assertCount(0, $matchingIndexes);
+
+        Schema::drop('helpdesk_accomplishments');
+    }
+
     public function test_in_progress_accomplishments_migrate_to_todo(): void
     {
         Schema::create('helpdesk_accomplishments', function ($table): void {
@@ -620,6 +648,31 @@ class ExampleTest extends TestCase
 
         $removeMigration->down();
         $this->assertTrue(Schema::hasColumn('helpdesk_notification_settings', 'ticket_status_changes'));
+        Schema::drop('helpdesk_notification_settings');
+    }
+
+    public function test_notification_settings_schema_reconciliation_removes_a_stale_preference_column(): void
+    {
+        Schema::create('helpdesk_notification_settings', function ($table): void {
+            $table->unsignedBigInteger('admin_id')->primary();
+            $table->boolean('enabled')->default(false);
+            $table->boolean('task_due')->default(true);
+            $table->boolean('ticket_status_changes')->default(true);
+            $table->timestamps();
+        });
+
+        $migration = require database_path('migrations/2026_11_04_000001_reconcile_notification_settings_schema.php');
+        $migration->up();
+
+        $this->assertFalse(Schema::hasColumn('helpdesk_notification_settings', 'ticket_status_changes'));
+        $this->assertTrue(Schema::hasColumns('helpdesk_notification_settings', [
+            'admin_id',
+            'enabled',
+            'task_due',
+            'created_at',
+            'updated_at',
+        ]));
+
         Schema::drop('helpdesk_notification_settings');
     }
 

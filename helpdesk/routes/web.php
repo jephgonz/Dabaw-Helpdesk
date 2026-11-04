@@ -33,6 +33,9 @@ Route::middleware('admin')->prefix('admin')->name('admin.')->group(function (): 
     Route::post('/users', [UserController::class, 'store'])->name('users.store');
     Route::post('/users/status', [UserController::class, 'setStatus'])->name('users.status');
     Route::get('/database', [DatabaseController::class, 'index'])->name('database');
+    Route::post('/database/backup/preview', [DatabaseController::class, 'clonePreview'])->name('database.backup.preview');
+    Route::post('/database/backup', [DatabaseController::class, 'cloneDatabase'])->name('database.backup');
+    Route::get('/database/backup-snapshots/{backup}', [DatabaseController::class, 'downloadBackupSnapshot'])->name('database.backup-snapshot');
     Route::get('/database/export', [DatabaseController::class, 'export'])->name('database.export');
     Route::post('/database/import', [DatabaseController::class, 'import'])->name('database.import');
     Route::get('/database/metrics', [DatabaseController::class, 'metrics'])->name('database.metrics');

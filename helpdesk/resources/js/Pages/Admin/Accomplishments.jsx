@@ -46,6 +46,7 @@ export default function Accomplishments({ accomplishments = [] }) {
     const [reportQuarter, setReportQuarter] = useState(String(Math.floor(currentDate.getMonth() / 3) + 1));
     const [showForm, setShowForm] = useState(false);
     const [editingTask, setEditingTask] = useState(null);
+    const [pendingAction, setPendingAction] = useState(null);
     const quarterStartMonth = (Number(reportQuarter) - 1) * 3 + 1;
     const quarterStart = `${reportYear}-${String(quarterStartMonth).padStart(2, '0')}`;
     const quarterEndDate = new Date(Number(reportYear), quarterStartMonth + 2, 1);
@@ -60,11 +61,17 @@ export default function Accomplishments({ accomplishments = [] }) {
     const closeForm = () => { setShowForm(false); setEditingTask(null); };
     const removeTask = (task) => {
         if (window.confirm(`Remove "${task.title}" from your accomplishment board?`)) {
-            router.post(appUrl(`/admin/accomplishments/${task.id}/delete`));
+            setPendingAction({ id: task.id, action: 'remove' });
+            router.post(appUrl(`/admin/accomplishments/${task.id}/delete`), {}, {
+                onFinish: () => setPendingAction(null),
+            });
         }
     };
     const completeTask = (task) => {
-        router.post(appUrl(`/admin/accomplishments/${task.id}/complete`));
+        setPendingAction({ id: task.id, action: 'complete' });
+        router.post(appUrl(`/admin/accomplishments/${task.id}/complete`), {}, {
+            onFinish: () => setPendingAction(null),
+        });
     };
 
     return (
@@ -90,7 +97,12 @@ export default function Accomplishments({ accomplishments = [] }) {
                 {visibleTasks.length === 0 ? <div className="empty-state"><span>✓</span><strong>{accomplishments.length === 0 ? 'Your board is ready' : 'No tasks in this view'}</strong><small>{accomplishments.length === 0 ? 'Add your first task to start tracking your work.' : 'Choose another status filter to see more tasks.'}</small></div> :
                     <div className="accomplishment-list">{visibleTasks.map((task) => <article className="accomplishment-item" key={task.id}>
                         <div className="accomplishment-item-main"><div className="accomplishment-item-heading"><h3>{task.title}</h3><span className={`accomplishment-status ${task.status}`}>{statusLabels[task.status]}</span></div>{task.description && <p>{task.description}</p>}<div className="accomplishment-dates">{task.due_date && <span>Due {formatDate(task.due_date)}</span>}{task.completed_at && <span>Completed {formatDate(task.completed_at)}</span>}</div>{editingTask?.id === task.id && <div className="accomplishment-item-edit" id={`accomplishment-edit-${task.id}`}><AccomplishmentForm key={task.id} task={task} onCancel={() => setEditingTask(null)} onSaved={() => setEditingTask(null)} /></div>}</div>
-                        <div className="accomplishment-actions">{task.status !== 'completed' && <button className="task-action complete action-icon-button" type="button" aria-label="Mark complete" title="Mark complete" onClick={() => completeTask(task)}><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="m5 12 4 4L19 6" /></svg></button>}<button className="task-action action-icon-button" type="button" aria-label={editingTask?.id === task.id ? 'Collapse edit task form' : 'Edit task'} title={editingTask?.id === task.id ? 'Collapse edit form' : 'Edit task'} aria-expanded={editingTask?.id === task.id} aria-controls={editingTask?.id === task.id ? `accomplishment-edit-${task.id}` : undefined} onClick={() => { setShowForm(false); setEditingTask((current) => current?.id === task.id ? null : task); }}><ActionIcon type="edit" /></button><button className="task-action remove action-icon-button" type="button" aria-label="Remove task" title="Remove task" onClick={() => removeTask(task)}><ActionIcon type="remove" /></button></div>
+                        <div className="accomplishment-actions">
+                            {task.status !== 'completed' && <button className="task-action complete action-icon-button" type="button" aria-label="Mark complete" title="Mark complete" disabled={pendingAction !== null} onClick={() => completeTask(task)}><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="m5 12 4 4L19 6" /></svg></button>}
+                            <button className="task-action action-icon-button" type="button" aria-label={editingTask?.id === task.id ? 'Collapse edit task form' : 'Edit task'} title={editingTask?.id === task.id ? 'Collapse edit form' : 'Edit task'} aria-expanded={editingTask?.id === task.id} aria-controls={editingTask?.id === task.id ? `accomplishment-edit-${task.id}` : undefined} disabled={pendingAction !== null} onClick={() => { setShowForm(false); setEditingTask((current) => current?.id === task.id ? null : task); }}><ActionIcon type="edit" /></button>
+                            <button className="task-action remove action-icon-button" type="button" aria-label="Remove task" title="Remove task" disabled={pendingAction !== null} onClick={() => removeTask(task)}><ActionIcon type="remove" /></button>
+                            {pendingAction?.id === task.id && <span className="accomplishment-action-pending" role="status">{pendingAction.action === 'complete' ? 'Completing…' : 'Removing…'}</span>}
+                        </div>
                     </article>)}</div>}
             </section>
         </DashboardLayout>

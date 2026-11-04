@@ -77,9 +77,11 @@ function ConnectionMonitor() {
     </section>;
 }
 
-function SqlWorkbench() {
+function SqlWorkbench({ driver }) {
     const formRef = useRef(null);
-    const [sql, setSql] = useState('SELECT TABLE_NAME, ENGINE, TABLE_ROWS\nFROM INFORMATION_SCHEMA.TABLES\nWHERE TABLE_SCHEMA = DATABASE()\nORDER BY TABLE_NAME;');
+    const [sql, setSql] = useState(driver === 'sqlite'
+        ? "SELECT name, type FROM sqlite_master WHERE type IN ('table', 'view') ORDER BY name;"
+        : 'SELECT TABLE_NAME, ENGINE, TABLE_ROWS\nFROM INFORMATION_SCHEMA.TABLES\nWHERE TABLE_SCHEMA = DATABASE()\nORDER BY TABLE_NAME;');
     const [result, setResult] = useState(null);
     const [error, setError] = useState('');
     const [running, setRunning] = useState(false);
@@ -130,36 +132,116 @@ function SqlWorkbench() {
     </section>;
 }
 
-export default function Database({ databaseName, serverVersion, tables = [], connected = false }) {
+export default function Database({ driver = 'sqlite', databaseName, serverVersion, tables = [], connected = false, backupStatus = 'unavailable', backupChanges = 0, backupSkippedTables = [] }) {
     const form = useForm({ sql_file: null, confirm_replace: false });
-    const { errors } = usePage().props;
+    const cloneForm = useForm({ operation: 'backup', preview_token: '', confirm_clone: false });
+    const { errors, flash } = usePage().props;
     const fileInput = useRef(null);
+    const databaseType = driver === 'sqlite' ? 'SQLite' : 'MySQL';
     const [tableSearch, setTableSearch] = useState('');
+    const [clonePreview, setClonePreview] = useState(null);
+    const [clonePreviewError, setClonePreviewError] = useState('');
+    const [clonePreviewing, setClonePreviewing] = useState(false);
     const filteredTables = useMemo(() => tables.filter((table) => table.name.toLowerCase().includes(tableSearch.trim().toLowerCase())), [tables, tableSearch]);
+    const previewClone = async (operation) => {
+        cloneForm.setData({ operation, preview_token: '', confirm_clone: false });
+        const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        if (!token) {
+            setClonePreviewError('The security token is missing. Refresh the page and try again.');
+            return;
+        }
+        setClonePreviewing(true);
+        setClonePreviewError('');
+        setClonePreview(null);
+        try {
+            const response = await fetch(appUrl('/admin/database/backup/preview'), {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': token },
+                body: JSON.stringify({ operation }),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Could not preview the database backup or restore.');
+            setClonePreview(data);
+            cloneForm.setData({ operation, preview_token: data.token, confirm_clone: false });
+        } catch (reason) {
+            setClonePreviewError(reason.message || 'Could not preview the database backup or restore.');
+        } finally {
+            setClonePreviewing(false);
+        }
+    };
+    const submitSync = (event) => {
+        event.preventDefault();
+        if (!clonePreview || !cloneForm.data.confirm_clone) return;
+        cloneForm.post(appUrl('/admin/database/backup'), {
+            onSuccess: () => setClonePreview(null),
+        });
+    };
+    const syncableChanges = clonePreview?.tables?.some((table) => table.status !== 'ready') ? 0 : (clonePreview?.tables || []).reduce((total, table) => total + table.source_rows + table.target_rows, 0);
+    const skippedTables = clonePreview?.tables?.filter((table) => table.status !== 'ready') || [];
     const submit = (event) => {
         event.preventDefault();
         if (!window.confirm('Import may drop and replace tables and data in the configured database. Continue?')) return;
         form.post(appUrl('/admin/database/import'));
     };
 
-    return <DashboardLayout title="MySQL database" activePage="database">
-        <div className="dashboard-title-row"><div><p className="eyebrow">SYSTEM</p><h1>MySQL database</h1><p className="dashboard-subtitle">Connection status and tables available to the workbench.</p></div><div className="title-actions"><a className="secondary-action" href="https://console.aiven.io/" target="_blank" rel="noopener noreferrer">Aiven Console ↗</a><a className="secondary-action" href={appUrl('/admin/database')}>↻ Refresh</a></div></div>
-        <section className="admin-card accounts-card database-tables-card"><div className="admin-card-heading accounts-heading"><div><span className="step-label">SCHEMA OVERVIEW</span><h2>Tables</h2><p>Browse and manage table data in the configured MySQL schema.</p></div><span className="account-count">{tables.length} tables</span></div>
+    return <DashboardLayout title="Local database" activePage="database">
+        <div className="dashboard-title-row"><div><p className="eyebrow">SYSTEM</p><h1>Local database</h1><p className="dashboard-subtitle">The application uses local SQLite as its primary database.</p></div><div className="title-actions"><a className="secondary-action" href="https://console.aiven.io/" target="_blank" rel="noopener noreferrer">Aiven Console ↗</a><a className="secondary-action" href={appUrl('/admin/database')}>↻ Refresh</a></div></div>
+        <section className="admin-card database-sync-card" aria-label="Aiven database backup and restore">
+            <div className="admin-card-heading"><div><span className="step-label">LOCAL PRIMARY · AIVEN BACKUP</span><h2>Backup and restore</h2><p>Local SQLite is the live database. Back up copies local data to Aiven; restore replaces local data with the Aiven copy. Both operations preview all managed tables and require confirmation.</p></div><span className={`database-backup-state ${backupStatus}`}><span />{backupStatus === 'current' ? 'Backup current' : backupStatus === 'outdated' ? 'Backup outdated' : backupStatus === 'needs_attention' ? 'Schema needs attention' : 'Aiven unavailable'}</span></div>
+            <p className="database-backup-status-detail">{backupStatus === 'current'
+                ? 'Aiven matches the local primary database.'
+                : backupStatus === 'outdated'
+                    ? `${backupChanges.toLocaleString()} rows differ. Local is authoritative; back up to refresh Aiven.`
+                    : backupStatus === 'needs_attention'
+                        ? `The database needs attention${backupSkippedTables.length ? ` (${backupSkippedTables.join(', ')})` : ' or exceeds the comparison limit'}.`
+                        : 'Could not compare local SQLite with Aiven. Check the Aiven connection settings.'}</p>
+            {errors.clone && <div className="dashboard-notice error" role="alert">{errors.clone}</div>}
+            {flash?.backupSnapshot && <p className="database-sync-backup">A private pre-operation snapshot was created. <a href={appUrl(`/admin/database/backup-snapshots/${encodeURIComponent(flash.backupSnapshot)}`)}>Download snapshot</a></p>}
+            {clonePreviewError && <div className="dashboard-notice error" role="alert">{clonePreviewError}</div>}
+            <div className="database-backup-actions">
+                <button className="sign-in-button" type="button" disabled={clonePreviewing} onClick={() => previewClone('backup')}>{clonePreviewing && cloneForm.data.operation === 'backup' ? 'Comparing…' : 'Back up local to Aiven'}</button>
+                <button className="secondary-action" type="button" disabled={clonePreviewing} onClick={() => previewClone('restore')}>{clonePreviewing && cloneForm.data.operation === 'restore' ? 'Comparing…' : 'Restore Aiven to local'}</button>
+            </div>
+            {clonePreview && <>
+                <p className="database-sync-direction">Clone <strong>{clonePreview.source === 'local' ? 'Local SQLite' : 'Aiven MySQL'}</strong> → <strong>{clonePreview.target === 'local' ? 'Local SQLite' : 'Aiven MySQL'}</strong>. Destination table data will be replaced.</p>
+                <div className="table-wrap database-sync-table-wrap"><table className="database-sync-table"><thead><tr><th>Table</th><th>Source rows</th><th>Destination rows</th><th>Result</th></tr></thead><tbody>{clonePreview.tables.map((table) => {
+                    const matches = table.status === 'ready' && table.new_rows + table.changed_rows + table.target_only_rows === 0;
+                    const result = table.status !== 'ready'
+                        ? table.status.replaceAll('_', ' ')
+                        : matches
+                            ? 'Matches'
+                            : `${table.new_rows.toLocaleString()} added · ${table.changed_rows.toLocaleString()} changed · ${table.target_only_rows.toLocaleString()} removed`;
+                    return <tr key={table.name}>
+                        <td data-label="Table"><strong>{table.name}</strong></td>
+                        <td data-label="Source rows">{table.status === 'ready' ? table.source_rows.toLocaleString() : '—'}</td>
+                        <td data-label="Destination rows">{table.status === 'ready' ? table.target_rows.toLocaleString() : '—'}</td>
+                        <td data-label="Result"><span className={`database-sync-result ${table.status !== 'ready' ? 'attention' : matches ? 'matches' : 'changes'}`}>{result}</span></td>
+                    </tr>;
+                })}</tbody></table></div>
+                {skippedTables.length > 0 && <p className="database-sync-no-changes">Clone is blocked until every managed table has the same schema and transactional storage on Aiven. Check migrations and table engines, then preview again.</p>}
+                {syncableChanges > 0 && skippedTables.length === 0 ? <form className="database-sync-confirm" onSubmit={submitSync}>
+                    <label><input type="checkbox" checked={cloneForm.data.confirm_clone} onChange={(event) => cloneForm.setData('confirm_clone', event.target.checked)} required /><span>I reviewed the preview. Replace all destination data in these tables with the source copy. A private snapshot of the destination will be created first.{cloneForm.data.operation === 'restore' ? ' The restore is blocked if it would remove or disable your current administrator account.' : ''}</span></label>
+                    <button className="sign-in-button" type="submit" disabled={cloneForm.processing || !cloneForm.data.confirm_clone}>{cloneForm.processing ? 'Cloning…' : cloneForm.data.operation === 'backup' ? 'Confirm backup to Aiven' : 'Confirm restore to local'}</button>
+                </form> : skippedTables.length === 0 ? <p className="database-sync-no-changes">Both copies already match. No clone is needed.</p> : null}
+            </>}
+        </section>
+        <section className="admin-card accounts-card database-tables-card"><div className="admin-card-heading accounts-heading"><div><span className="step-label">SCHEMA OVERVIEW</span><h2>Tables</h2><p>Browse and manage table data in the configured {databaseType} database.</p></div><span className="account-count">{tables.length} tables</span></div>
             {tables.length === 0 ? <div className="empty-state"><span>▤</span><strong>No tables found</strong><small>The configured database has no visible tables.</small></div> : <>
                 <label className="database-table-search" htmlFor="database-table-search">Filter tables<input id="database-table-search" type="search" value={tableSearch} onChange={(event) => setTableSearch(event.target.value)} placeholder="Search table names…" /></label>
-                <div className="table-wrap"><table><thead><tr><th>Table</th><th>Engine</th><th>Estimated rows</th><th>Data + indexes</th><th /></tr></thead><tbody>{filteredTables.length === 0 ? <tr><td colSpan="5">No tables match that search.</td></tr> : filteredTables.map((table) => <tr key={table.name}><td><strong>{table.name}</strong></td><td>{table.engine || '—'}</td><td>{Number(table.rows_estimate || 0).toLocaleString()}</td><td>{(Number(table.bytes || 0) / 1048576).toFixed(2)} MB</td><td><Link className="table-action" href={`${appUrl('/admin/database/table')}?table=${encodeURIComponent(table.name)}`}>Browse rows <span>→</span></Link></td></tr>)}</tbody></table></div>
+                <div className="table-wrap"><table><thead><tr><th>Table</th><th>Engine</th><th>{driver === 'sqlite' ? 'Rows' : 'Estimated rows'}</th>{driver === 'mysql' && <th>Data + indexes</th>}<th /></tr></thead><tbody>{filteredTables.length === 0 ? <tr><td colSpan={driver === 'sqlite' ? 4 : 5}>No tables match that search.</td></tr> : filteredTables.map((table) => <tr key={table.name}><td><strong>{table.name}</strong></td><td>{table.engine || '—'}</td><td>{Number(table.rows_estimate || 0).toLocaleString()}</td>{driver === 'mysql' && <td>{(Number(table.bytes || 0) / 1048576).toFixed(2)} MB</td>}<td><Link className="table-action" href={`${appUrl('/admin/database/table')}?table=${encodeURIComponent(table.name)}`}>Browse rows <span>→</span></Link></td></tr>)}</tbody></table></div>
             </>}
         </section>
         <section className="database-summary" aria-label="Database connection details">
-            <article className="database-info-card"><span className="database-info-label">Connection</span><strong className={`database-state ${connected ? 'online' : 'offline'}`}><span />{connected ? 'Connected' : 'Unavailable'}</strong><small>{connected ? 'Using the configured MySQL connection.' : 'Check the configured MySQL connection.'}</small></article>
-            <article className="database-info-card"><span className="database-info-label">Database</span><strong>{databaseName}</strong><small>MySQL schema used by the workbench</small></article>
-            <article className="database-info-card"><span className="database-info-label">Server version</span><strong>{serverVersion}</strong><small>Configured MySQL server</small></article>
+            <article className="database-info-card"><span className="database-info-label">Connection</span><strong className={`database-state ${connected ? 'online' : 'offline'}`}><span />{connected ? 'Connected' : 'Unavailable'}</strong><small>{connected ? `Using the configured ${databaseType} connection.` : `Check the configured ${databaseType} connection.`}</small></article>
+            <article className="database-info-card"><span className="database-info-label">Database</span><strong>{databaseName}</strong><small>{driver === 'sqlite' ? 'Local database file in this project' : 'MySQL schema used by the workbench'}</small></article>
+            <article className="database-info-card"><span className="database-info-label">{driver === 'sqlite' ? 'SQLite version' : 'Server version'}</span><strong>{serverVersion}</strong><small>{driver === 'sqlite' ? 'Local database engine' : 'Configured MySQL server'}</small></article>
         </section>
-        <ConnectionMonitor />
-        <SqlWorkbench />
+        {driver === 'mysql' && <ConnectionMonitor />}
+        <SqlWorkbench driver={driver} />
         <section className="database-transfer-grid" aria-label="Database import and export">
-            <article className="admin-card database-transfer-card"><div className="admin-card-heading"><div><span className="step-label">BACKUP</span><h2>Export database</h2><p>Download a Laravel-compatible MySQL SQL backup with table definitions and data, including Laravel migration history. It can also be opened in phpMyAdmin or MySQL Workbench.</p></div><span className="section-mark">↓</span></div><a className="secondary-action primary-action" href={appUrl('/admin/database/export')}>Download SQL backup</a><p className="database-transfer-warning">The backup includes password hashes and other database contents. Keep the file private.</p></article>
-            <article className="admin-card database-transfer-card"><div className="admin-card-heading"><div><span className="step-label">RESTORE</span><h2>Restore database</h2><p>Restore a .sql backup into the database configured for this Laravel application. Pending Laravel migrations run after the import.</p></div><span className="section-mark">↑</span></div>
+            <article className="admin-card database-transfer-card"><div className="admin-card-heading"><div><span className="step-label">BACKUP</span><h2>Export database</h2><p>{driver === 'sqlite' ? 'Download a copy of the local SQLite database file, including its schema and all records.' : 'Download a Laravel-compatible MySQL SQL backup with table definitions and data, including Laravel migration history. It can also be opened in phpMyAdmin or MySQL Workbench.'}</p></div><span className="section-mark">↓</span></div><a className="secondary-action primary-action" href={appUrl('/admin/database/export')}>{driver === 'sqlite' ? 'Download SQLite backup' : 'Download SQL backup'}</a><p className="database-transfer-warning">The backup includes password hashes and other database contents. Keep the file private.</p></article>
+            {driver === 'sqlite' ? <article className="admin-card database-transfer-card"><div className="admin-card-heading"><div><span className="step-label">RESTORE</span><h2>Restore database</h2><p>To restore a SQLite backup, stop the application and replace <code>database/database.sqlite</code> with the backup file.</p></div><span className="section-mark">↑</span></div><p className="database-transfer-warning">Keep a separate backup before replacing the local database file.</p></article> : <article className="admin-card database-transfer-card"><div className="admin-card-heading"><div><span className="step-label">RESTORE</span><h2>Restore database</h2><p>Restore a .sql backup into the database configured for this Laravel application. Pending Laravel migrations run after the import.</p></div><span className="section-mark">↑</span></div>
                 {errors.sql_file && <div className="dashboard-notice error">{errors.sql_file}</div>}
                 {errors.confirm_replace && <div className="dashboard-notice error">{errors.confirm_replace}</div>}
                 <form className="account-form database-import-form" onSubmit={submit}>
@@ -167,7 +249,7 @@ export default function Database({ databaseName, serverVersion, tables = [], con
                     <label className="database-import-confirm"><input type="checkbox" checked={form.data.confirm_replace} onChange={(event) => form.setData('confirm_replace', event.target.checked)} required /><span>I understand matching tables and their data may be replaced in this Laravel database.</span></label>
                     <button className="sign-in-button" type="submit" disabled={form.processing}>{form.processing ? 'Restoring…' : 'Restore SQL backup'}</button>
                 </form><p className="database-transfer-warning">The restore uses this app’s configured database connection. Only table and data statements are accepted; database-level commands, routines, and triggers are not imported.</p>
-            </article>
+            </article>}
         </section>
     </DashboardLayout>;
 }

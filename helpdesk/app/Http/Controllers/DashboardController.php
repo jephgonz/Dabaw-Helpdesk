@@ -13,13 +13,20 @@ class DashboardController extends Controller
     public function admin(Request $request): Response
     {
         try {
-            $users = DB::table('helpdesk_users')
-                ->select(['id', 'display_name', 'username', 'email', 'role', 'is_active', 'created_at'])
-                ->orderByDesc('created_at')
-                ->get();
+            $userCounts = DB::table('helpdesk_users')
+                ->selectRaw(
+                    'COUNT(*) as total, SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as active, SUM(CASE WHEN role = ? THEN 1 ELSE 0 END) as administrators',
+                    ['admin']
+                )
+                ->first();
+            $accountCounts = [
+                'total' => (int) ($userCounts->total ?? 0),
+                'active' => (int) ($userCounts->active ?? 0),
+                'administrators' => (int) ($userCounts->administrators ?? 0),
+            ];
         } catch (\Throwable $exception) {
             Log::error('Admin overview could not load.', ['exception' => $exception]);
-            $users = collect();
+            $accountCounts = ['total' => 0, 'active' => 0, 'administrators' => 0];
             session()->flash('error', 'The overview could not be loaded. Check the database connection and schema.');
         }
 
@@ -55,7 +62,7 @@ class DashboardController extends Controller
         }
 
         return Inertia::render('Admin/Dashboard', [
-            'users' => $users,
+            'accountCounts' => $accountCounts,
             'openTaskCount' => $openTaskCount,
             'pendingTaskCount' => $pendingTaskCount,
             'completedThisQuarterCount' => $completedThisQuarterCount,

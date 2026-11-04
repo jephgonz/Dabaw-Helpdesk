@@ -21,6 +21,7 @@ class HandleInertiaRequests extends Middleware
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),
                 'generatedCard' => fn () => $request->session()->get('generatedCard'),
+                'backupSnapshot' => fn () => $request->session()->get('backupSnapshot'),
             ],
         ];
     }

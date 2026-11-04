@@ -2,11 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\DatabaseSyncService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 use PDO;
@@ -17,34 +21,185 @@ class DatabaseController extends Controller
     public function index(): Response
     {
         $connected = false;
+        $driver = DB::connection()->getDriverName();
         try {
             $pdo = DB::connection()->getPdo();
-            $databaseName = (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
-            $serverVersion = (string) $pdo->query('SELECT VERSION()')->fetchColumn();
-            $tables = DB::select(
-                'SELECT TABLE_NAME AS name, ENGINE AS engine, TABLE_ROWS AS rows_estimate, DATA_LENGTH + INDEX_LENGTH AS bytes FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = ? ORDER BY TABLE_NAME',
-                ['BASE TABLE']
-            );
+            if ($driver === 'sqlite') {
+                $databaseName = basename(str_replace('\\', '/', DB::connection()->getDatabaseName()));
+                $serverVersion = 'SQLite '.(string) $pdo->query('SELECT sqlite_version()')->fetchColumn();
+                $tables = DB::select("SELECT name, 'SQLite' AS engine, 0 AS rows_estimate, 0 AS bytes FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
+                foreach ($tables as $table) {
+                    $table->rows_estimate = DB::table($table->name)->count();
+                }
+            } else {
+                $databaseName = (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
+                $serverVersion = (string) $pdo->query('SELECT VERSION()')->fetchColumn();
+                $tables = DB::select(
+                    'SELECT TABLE_NAME AS name, ENGINE AS engine, TABLE_ROWS AS rows_estimate, DATA_LENGTH + INDEX_LENGTH AS bytes FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = ? ORDER BY TABLE_NAME',
+                    ['BASE TABLE']
+                );
+            }
             $connected = true;
         } catch (\Throwable $exception) {
             Log::error('Database overview could not load.', ['exception' => $exception]);
             $databaseName = '';
             $serverVersion = '';
             $tables = [];
-            session()->flash('error', 'The MySQL database could not be reached. Check the database configuration.');
+            session()->flash('error', 'The configured database could not be reached. Check the database configuration.');
+        }
+
+        $backupStatus = 'unavailable';
+        $backupChanges = 0;
+        $backupSkippedTables = [];
+        try {
+            $comparison = Cache::remember(
+                $this->backupComparisonCacheKey(),
+                now()->addSeconds(20),
+                fn (): array => app(DatabaseSyncService::class)->preview('local')
+            );
+            $backupStatus = 'current';
+            foreach ($comparison['tables'] as $table) {
+                if ($table['status'] !== 'ready') {
+                    $backupStatus = 'needs_attention';
+                    $backupSkippedTables[] = $table['name'];
+                    continue;
+                }
+                $backupChanges += $table['new_rows'] + $table['changed_rows'] + $table['target_only_rows'];
+                if ($backupStatus === 'current' && $table['new_rows'] + $table['changed_rows'] + $table['target_only_rows'] > 0) {
+                    $backupStatus = 'outdated';
+                }
+            }
+        } catch (RuntimeException $exception) {
+            $backupStatus = 'needs_attention';
+            Log::warning('Aiven backup comparison needs attention.', ['exception' => $exception]);
+        } catch (\Throwable $exception) {
+            Log::warning('Aiven backup status could not be checked.', ['exception' => $exception]);
         }
 
         return Inertia::render('Admin/Database', [
+            'driver' => $driver,
             'databaseName' => $databaseName,
             'serverVersion' => $serverVersion,
             'tables' => $tables,
             'connected' => $connected,
+            'backupStatus' => $backupStatus,
+            'backupChanges' => $backupChanges,
+            'backupSkippedTables' => $backupSkippedTables,
             'activePage' => 'database',
+        ]);
+    }
+
+    public function clonePreview(Request $request, DatabaseSyncService $syncService)
+    {
+        $validated = $request->validate([
+            'operation' => ['required', 'in:backup,restore'],
+        ]);
+        $source = $validated['operation'] === 'backup' ? 'local' : 'aiven';
+
+        try {
+            $preview = $syncService->preview($source);
+            $preview['token'] = Crypt::encryptString(json_encode([
+                'operation' => $validated['operation'],
+                'source' => $preview['source'],
+                'target' => $preview['target'],
+                'fingerprint' => $preview['fingerprint'],
+                'issued_at' => time(),
+            ], JSON_THROW_ON_ERROR));
+
+            return response()->json($preview);
+        } catch (\Throwable $exception) {
+            Log::warning('Database clone preview failed.', ['exception' => $exception]);
+
+            return response()->json([
+                'error' => $exception instanceof RuntimeException
+                    ? $exception->getMessage()
+                    : 'Could not compare the databases. Check both connections and try again.',
+            ], 422);
+        }
+    }
+
+    public function cloneDatabase(Request $request, DatabaseSyncService $syncService): RedirectResponse
+    {
+        $validated = $request->validate([
+            'operation' => ['required', 'in:backup,restore'],
+            'preview_token' => ['required', 'string', 'max:8192'],
+            'confirm_clone' => ['accepted'],
+        ]);
+        $source = $validated['operation'] === 'backup' ? 'local' : 'aiven';
+
+        try {
+            $token = json_decode(Crypt::decryptString($validated['preview_token']), true, 512, JSON_THROW_ON_ERROR);
+            if (
+                !is_array($token)
+                || ($token['operation'] ?? null) !== $validated['operation']
+                || ($token['source'] ?? null) !== $source
+                || !is_int($token['issued_at'] ?? null)
+                || $token['issued_at'] > time()
+                || time() - $token['issued_at'] > 600
+            ) {
+                return back()->withErrors(['clone' => 'This preview has expired. Preview the backup or restore again before applying it.']);
+            }
+
+            $preview = $syncService->preview($source);
+            if (!hash_equals((string) ($token['fingerprint'] ?? ''), $preview['fingerprint'])) {
+                return back()->withErrors(['clone' => 'One of the databases changed after this preview. Preview the backup or restore again before applying it.']);
+            }
+            if (!hash_equals((string) ($token['target'] ?? ''), $preview['target'])) {
+                return back()->withErrors(['clone' => 'The clone target changed. Preview the backup or restore again before applying it.']);
+            }
+
+            $adminId = $validated['operation'] === 'restore'
+                ? (int) $request->session()->get('user.id')
+                : null;
+            $result = $syncService->cloneDatabase($preview, $adminId);
+        } catch (\Throwable $exception) {
+            Log::error('Database clone failed.', ['exception' => $exception]);
+
+            return back()->withErrors([
+                'clone' => $exception instanceof RuntimeException
+                    ? $exception->getMessage()
+                    : 'The clone could not be completed. No partial clone was committed; check the database connections and try again.',
+            ]);
+        }
+
+        $action = $validated['operation'] === 'backup' ? 'Aiven backup completed' : 'Local database restored from Aiven';
+        Cache::forget($this->backupComparisonCacheKey());
+
+        return redirect()->route('admin.database')
+            ->with('success', "{$action}: {$result['tables_cloned']} tables and {$result['rows_written']} rows cloned.")
+            ->with('backupSnapshot', $result['snapshot']);
+    }
+
+    private function backupComparisonCacheKey(): string
+    {
+        return 'database.backup.comparison.'.hash('sha256', serialize([
+            config('database.connections.sqlite.database'),
+            config('database.connections.mysql.host'),
+            config('database.connections.mysql.database'),
+        ]));
+    }
+
+    public function downloadBackupSnapshot(string $backup)
+    {
+        abort_unless(
+            preg_match('/^database-backup-(?:local|aiven)-\d{8}T\d{6}Z-[a-f0-9]{12}\.dat\.gz$/', $backup) === 1,
+            404
+        );
+        $path = 'database-backups/'.$backup;
+        abort_unless(Storage::disk('local')->exists($path), 404);
+
+        return Storage::disk('local')->download($path, $backup, [
+            'Content-Type' => 'application/gzip',
+            'Cache-Control' => 'no-store',
         ]);
     }
 
     public function metrics()
     {
+        if (DB::connection()->getDriverName() !== 'mysql') {
+            return response()->json(['error' => 'Live connection metrics are only available for MySQL.'], 503);
+        }
+
         try {
             $pdo = DB::connection()->getPdo();
             $status = $pdo->query("SHOW GLOBAL STATUS WHERE Variable_name IN ('Threads_connected', 'Threads_running', 'Max_used_connections', 'Connections', 'Uptime')")->fetchAll(PDO::FETCH_KEY_PAIR);
@@ -272,6 +427,15 @@ class DatabaseController extends Controller
 
     public function export()
     {
+        if (DB::connection()->getDriverName() === 'sqlite') {
+            $databasePath = DB::connection()->getDatabaseName();
+            abort_unless(is_file($databasePath), 404);
+
+            return response()->download($databasePath, 'database.sqlite', [
+                'Content-Type' => 'application/vnd.sqlite3',
+            ]);
+        }
+
         $pdo = DB::connection()->getPdo();
         $database = (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
         $tables = $pdo->query("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE' ORDER BY TABLE_NAME")->fetchAll(PDO::FETCH_COLUMN);
@@ -321,6 +485,8 @@ class DatabaseController extends Controller
 
     public function import(Request $request): RedirectResponse
     {
+        abort_if(DB::connection()->getDriverName() !== 'mysql', 404);
+
         $validated = $request->validate([
             'confirm_replace' => ['accepted'],
             'sql_file' => ['required', 'file', 'max:25600', 'extensions:sql'],
@@ -372,6 +538,35 @@ class DatabaseController extends Controller
         if (!preg_match('/^[A-Za-z0-9_]+$/', $table)) {
             abort(404);
         }
+        if (DB::connection()->getDriverName() === 'sqlite') {
+            $schema = DB::connection()->getSchemaBuilder();
+            $columns = $schema->getColumns($table);
+            abort_if($columns === [], 404);
+            $primaryKeys = [];
+            foreach ($schema->getIndexes($table) as $index) {
+                if ($index['primary'] ?? false) {
+                    $primaryKeys = $index['columns'];
+                    break;
+                }
+            }
+
+            return [
+                'columns' => array_map(static function (array $column) use ($primaryKeys): array {
+                    $isPrimary = in_array($column['name'], $primaryKeys, true);
+
+                    return [
+                        'name' => $column['name'],
+                        'type' => $column['type'],
+                        'nullable' => $column['nullable'],
+                        'default' => $column['default'],
+                        'extra' => $column['name'] === 'id' && !empty($column['auto_increment']) ? 'auto_increment' : '',
+                        'key' => $isPrimary ? 'PRI' : '',
+                    ];
+                }, $columns),
+                'primary_keys' => $primaryKeys,
+            ];
+        }
+
         $columns = DB::select(
             'SELECT COLUMN_NAME AS name, COLUMN_TYPE AS type, IS_NULLABLE AS nullable, COLUMN_DEFAULT AS default_value, EXTRA AS extra, COLUMN_KEY AS column_key FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? ORDER BY ORDINAL_POSITION',
             [$table]
