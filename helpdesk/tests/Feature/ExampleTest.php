@@ -2,84 +2,33 @@
 
 namespace Tests\Feature;
 
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
-use Mockery;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
 {
-    public function test_public_landing_page_is_rendered_at_root(): void
+    public function test_root_and_admin_login_render_the_sign_in_page(): void
     {
         $this->get('/')->assertOk()->assertInertia(fn (Assert $page) => $page
-            ->component('Landing/Index'));
+            ->component('Auth/Login'));
+        $this->get('/admin/login')->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->component('Auth/Login'));
     }
 
-    public function test_public_landing_page_shows_latest_notices(): void
-    {
-        Schema::create('helpdesk_users', function ($table): void {
-            $table->id();
-            $table->string('display_name');
-        });
-        Schema::create('helpdesk_notices', function ($table): void {
-            $table->id();
-            $table->unsignedBigInteger('posted_by');
-            $table->string('title');
-            $table->text('body');
-            $table->string('attachment_path')->nullable();
-            $table->timestamps();
-        });
-        DB::table('helpdesk_users')->insert(['id' => 1, 'display_name' => 'Administrator']);
-        DB::table('helpdesk_notices')->insert([
-            'id' => 1,
-            'posted_by' => 1,
-            'title' => 'Service update',
-            'body' => 'The helpdesk will be available as usual.',
-            'attachment_path' => null,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $this->get('/')->assertOk()->assertInertia(fn (Assert $page) => $page
-            ->component('Landing/Index')
-            ->has('notices', 1)
-            ->where('notices.0.title', 'Service update')
-            ->where('notices.0.author', 'Administrator'));
-
-        Schema::drop('helpdesk_notices');
-        Schema::drop('helpdesk_users');
-    }
-
-    public function test_public_landing_page_shows_support_request_totals(): void
-    {
-        Schema::create('helpdesk_tickets', function ($table): void {
-            $table->id();
-            $table->string('status');
-        });
-        DB::table('helpdesk_tickets')->insert([
-            ['status' => 'resolved'],
-            ['status' => 'in_progress'],
-            ['status' => 'new'],
-            ['status' => 'resolved'],
-        ]);
-
-        $this->get('/')->assertOk()->assertInertia(fn (Assert $page) => $page
-            ->component('Landing/Index')
-            ->where('ticketStats.total', 4)
-            ->where('ticketStats.resolved', 2)
-            ->where('ticketStats.in_progress', 1)
-            ->where('ticketStats.new_count', 1));
-
-        Schema::drop('helpdesk_tickets');
-    }
-
-    public function test_login_url_returns_to_public_landing_page(): void
+    public function test_login_url_redirects_to_the_sign_in_page(): void
     {
         $this->get('/login')->assertRedirect('/');
+    }
+
+    public function test_ticketing_and_notice_routes_are_removed(): void
+    {
+        $this->get('/admin/tickets')->assertNotFound();
+        $this->get('/admin/notices')->assertNotFound();
+        $this->post('/reports')->assertNotFound();
     }
 
     public function test_only_administrator_login_page_is_available(): void
@@ -183,11 +132,6 @@ class ExampleTest extends TestCase
             ['id' => 1, 'display_name' => 'Admin One', 'username' => null, 'email' => 'admin@example.com', 'role' => 'admin', 'is_active' => 1, 'created_at' => now()],
             ['id' => 2, 'display_name' => 'Admin Two', 'username' => null, 'email' => 'other@example.com', 'role' => 'admin', 'is_active' => 1, 'created_at' => now()],
         ]);
-        Schema::create('helpdesk_tickets', function ($table): void {
-            $table->id();
-            $table->string('status');
-            $table->timestamp('resolved_at')->nullable();
-        });
         Schema::create('helpdesk_accomplishments', function ($table): void {
             $table->id();
             $table->unsignedBigInteger('created_by');
@@ -218,13 +162,7 @@ class ExampleTest extends TestCase
                 ->where('pendingTasks.1.title', 'Prepare report'));
 
         Schema::drop('helpdesk_accomplishments');
-        Schema::drop('helpdesk_tickets');
         Schema::drop('helpdesk_users');
-    }
-
-    public function test_admin_notices_require_an_admin_session(): void
-    {
-        $this->get('/admin/notices')->assertRedirect('/admin/login');
     }
 
     public function test_monthly_allocation_planner_is_an_admin_dashboard_page(): void
@@ -417,7 +355,7 @@ class ExampleTest extends TestCase
         });
     }
 
-    public function test_staff_dashboard_redirects_to_public_helpdesk(): void
+    public function test_dashboard_redirects_to_sign_in_when_signed_out(): void
     {
         $this->get('/dashboard')->assertRedirect('/');
     }
@@ -442,64 +380,11 @@ class ExampleTest extends TestCase
         $this->withSession($session)->delete('/tasks/1')->assertNotFound();
     }
 
-    public function test_legacy_staff_support_route_redirects_to_public_report_form(): void
-    {
-        $this->get('/dashboard/requests')->assertRedirect('/#report');
-    }
-
     public function test_chat_routes_are_removed(): void
     {
         $this->get('/chat')->assertNotFound();
         $this->get('/chat/state')->assertNotFound();
         $this->postJson('/chat/conversations', ['user_id' => 1])->assertNotFound();
-    }
-
-    public function test_public_report_can_be_submitted_without_a_staff_account(): void
-    {
-        Schema::create('helpdesk_tickets', function ($table): void {
-            $table->id();
-            $table->unsignedBigInteger('submitted_by')->nullable();
-            $table->string('requester_name', 120);
-            $table->string('requester_email', 190);
-            $table->string('subject', 160);
-            $table->text('description');
-            $table->string('status')->default('new');
-            $table->timestamp('resolved_at')->nullable();
-            $table->timestamps();
-        });
-
-        $this->post('/reports', [
-            'requester_name' => 'Public Reporter',
-            'requester_email' => 'reporter@example.com',
-            'subject' => 'Cannot access printer',
-            'description' => 'The office printer is offline.',
-            'website' => '',
-        ])->assertRedirect()
-            ->assertSessionHas('success', 'Your report was sent to the helpdesk. Thank you.');
-
-        $this->assertDatabaseHas('helpdesk_tickets', [
-            'submitted_by' => null,
-            'requester_name' => 'Public Reporter',
-            'requester_email' => 'reporter@example.com',
-            'status' => 'new',
-        ]);
-
-        Schema::drop('helpdesk_tickets');
-    }
-
-    public function test_public_report_migration_allows_null_submitter(): void
-    {
-        Schema::create('helpdesk_tickets', function ($table): void {
-            $table->id();
-            $table->unsignedBigInteger('submitted_by');
-        });
-        $migration = require database_path('migrations/2026_10_19_000007_allow_public_helpdesk_reports.php');
-        $migration->up();
-
-        DB::table('helpdesk_tickets')->insert(['submitted_by' => null]);
-        $this->assertDatabaseHas('helpdesk_tickets', ['submitted_by' => null]);
-
-        Schema::drop('helpdesk_tickets');
     }
 
     public function test_database_cache_removal_migration_drops_cache_and_lock_tables(): void
@@ -522,95 +407,48 @@ class ExampleTest extends TestCase
         $this->assertFalse(Schema::hasTable('cache_locks'));
     }
 
-    public function test_admin_sidebar_count_is_shared_with_other_admin_views(): void
-    {
-        $admin = Mockery::mock();
-        $admin->shouldReceive('where')->once()->with('id', 1)->andReturnSelf();
-        $admin->shouldReceive('where')->once()->with('role', 'admin')->andReturnSelf();
-        $admin->shouldReceive('where')->once()->with('is_active', 1)->andReturnSelf();
-        $admin->shouldReceive('exists')->once()->andReturnTrue();
-
-        $tickets = Mockery::mock();
-        $tickets->shouldReceive('where')->once()->with('status', 'new')->andReturnSelf();
-        $tickets->shouldReceive('count')->once()->andReturn(4);
-        DB::shouldReceive('table')->once()->with('helpdesk_users')->andReturn($admin);
-        DB::shouldReceive('table')->once()->with('helpdesk_tickets')->andReturn($tickets);
-
-        $this->withSession(['user' => [
-            'id' => 1,
-            'name' => 'Admin',
-            'email' => 'admin@example.com',
-            'role' => 'admin',
-        ]])->get('/admin/tools/id-generator')
-            ->assertInertia(fn (Assert $page) => $page
-                ->component('Admin/IdGenerator')
-                ->where('newTicketCount', 4));
-    }
-
-    public function test_notice_migration_creates_the_notice_board_table(): void
-    {
-        $migration = require database_path('migrations/2026_10_19_000001_create_helpdesk_notices_table.php');
-        $migration->up();
-        $attachmentMigration = require database_path('migrations/2026_10_19_000002_add_attachment_to_helpdesk_notices.php');
-        $attachmentMigration->up();
-
-        $this->assertTrue(Schema::hasTable('helpdesk_notices'));
-        $this->assertEqualsCanonicalizing(
-            ['id', 'posted_by', 'title', 'body', 'attachment_path', 'created_at', 'updated_at'],
-            Schema::getColumnListing('helpdesk_notices')
-        );
-
-        Schema::drop('helpdesk_notices');
-    }
-
-    public function test_admin_can_post_a_scanned_notice_and_public_can_view_its_image(): void
+    public function test_ticket_and_notice_cleanup_preserves_workbench_data(): void
     {
         Schema::create('helpdesk_users', function ($table): void {
             $table->id();
-            $table->string('role');
-            $table->boolean('is_active');
+            $table->string('display_name');
+        });
+        Schema::create('helpdesk_tickets', function ($table): void {
+            $table->id();
+            $table->string('subject');
         });
         Schema::create('helpdesk_notices', function ($table): void {
             $table->id();
-            $table->unsignedBigInteger('posted_by');
-            $table->string('title', 180);
-            $table->text('body');
-            $table->string('attachment_path')->nullable();
-            $table->timestamps();
+            $table->string('title');
         });
-        DB::table('helpdesk_users')->insert([
-            ['id' => 1, 'role' => 'admin', 'is_active' => 1],
-            ['id' => 2, 'role' => 'staff', 'is_active' => 1],
-        ]);
+        Schema::create('helpdesk_notification_settings', function ($table): void {
+            $table->unsignedBigInteger('admin_id')->primary();
+            $table->boolean('task_due')->default(true);
+            $table->boolean('new_support_requests')->default(true);
+        });
+        Schema::create('helpdesk_settings', function ($table): void {
+            $table->string('setting_key')->primary();
+            $table->text('setting_value');
+        });
+        DB::table('helpdesk_users')->insert(['id' => 1, 'display_name' => 'Administrator']);
+        DB::table('helpdesk_tickets')->insert(['subject' => 'Old request']);
+        DB::table('helpdesk_notices')->insert(['title' => 'Old notice']);
+        DB::table('helpdesk_notification_settings')->insert(['admin_id' => 1, 'task_due' => 1, 'new_support_requests' => 1]);
+        DB::table('helpdesk_settings')->insert(['setting_key' => 'monthly_target', 'setting_value' => '4500']);
         Storage::fake('local');
+        Storage::disk('local')->put('notice-attachments/memo.png', 'notice attachment');
+        Storage::disk('local')->put('id-cards/keep.png', 'unrelated file');
 
-        $this->withSession(['user' => [
-            'id' => 1,
-            'name' => 'Admin',
-            'email' => 'admin@example.com',
-            'role' => 'admin',
-        ]])->post('/admin/notices', [
-            'title' => 'Office memo',
-            'body' => 'Please review the attached memo.',
-            'attachment' => UploadedFile::fake()->image('memo.png'),
-        ])->assertRedirect()
-            ->assertSessionHas('success');
+        $migration = require database_path('migrations/2026_11_04_000000_remove_tickets_and_notices.php');
+        $migration->up();
 
-        $notice = DB::table('helpdesk_notices')->first();
-        $this->assertNotNull($notice->attachment_path);
-        Storage::disk('local')->assertExists($notice->attachment_path);
-
-        $this->withSession(['user' => [
-            'id' => 2,
-            'name' => 'Staff',
-            'email' => 'staff@example.com',
-            'role' => 'staff',
-        ]])->get("/notices/{$notice->id}/attachment")
-            ->assertOk()
-            ->assertHeader('Content-Type', 'image/png');
-
-        Schema::drop('helpdesk_notices');
-        Schema::drop('helpdesk_users');
+        $this->assertFalse(Schema::hasTable('helpdesk_tickets'));
+        $this->assertFalse(Schema::hasTable('helpdesk_notices'));
+        $this->assertDatabaseHas('helpdesk_users', ['id' => 1, 'display_name' => 'Administrator']);
+        $this->assertDatabaseHas('helpdesk_settings', ['setting_key' => 'monthly_target', 'setting_value' => '4500']);
+        $this->assertFalse(Schema::hasColumn('helpdesk_notification_settings', 'new_support_requests'));
+        Storage::disk('local')->assertMissing('notice-attachments/memo.png');
+        Storage::disk('local')->assertExists('id-cards/keep.png');
     }
 
     public function test_chat_removal_migration_deletes_history_and_disables_staff_accounts(): void
@@ -720,7 +558,7 @@ class ExampleTest extends TestCase
         Schema::drop('helpdesk_accomplishments');
     }
 
-    public function test_browser_notification_settings_are_saved_per_administrator(): void
+    public function test_task_notification_settings_are_saved_per_administrator(): void
     {
         $this->createNotificationTables();
         $adminOne = ['user' => ['id' => 1, 'name' => 'Admin One', 'role' => 'admin']];
@@ -731,24 +569,21 @@ class ExampleTest extends TestCase
             ->assertExactJson([
                 'enabled' => false,
                 'task_due' => true,
-                'new_support_requests' => true,
             ]);
 
         $this->withSession($adminOne)->postJson('/admin/notifications/settings', [
             'enabled' => true,
             'task_due' => true,
-            'new_support_requests' => false,
         ])->assertOk()->assertJsonPath('enabled', true)
-            ->assertJsonPath('new_support_requests', false);
+            ->assertJsonPath('task_due', true);
 
         $this->withSession($adminTwo)->getJson('/admin/notifications/settings')
             ->assertOk()
             ->assertJsonPath('enabled', false)
-            ->assertJsonPath('new_support_requests', true);
+            ->assertJsonPath('task_due', true);
         $this->withSession($adminOne)->postJson('/admin/notifications/settings', [
             'enabled' => 'sometimes',
             'task_due' => true,
-            'new_support_requests' => true,
         ])->assertUnprocessable()->assertJsonValidationErrors('enabled');
 
         Schema::drop('helpdesk_notification_settings');
@@ -765,7 +600,6 @@ class ExampleTest extends TestCase
             'admin_id',
             'enabled',
             'task_due',
-            'new_support_requests',
             'ticket_status_changes',
             'created_at',
             'updated_at',
@@ -789,7 +623,7 @@ class ExampleTest extends TestCase
         Schema::drop('helpdesk_notification_settings');
     }
 
-    public function test_browser_notification_poll_returns_due_tasks_and_new_requests_only(): void
+    public function test_browser_notification_poll_returns_due_tasks(): void
     {
         $this->createNotificationTables();
         Schema::create('helpdesk_accomplishments', function ($table): void {
@@ -802,18 +636,10 @@ class ExampleTest extends TestCase
             $table->timestamp('completed_at')->nullable();
             $table->timestamps();
         });
-        Schema::create('helpdesk_tickets', function ($table): void {
-            $table->id();
-            $table->string('subject');
-            $table->string('status');
-            $table->timestamp('created_at');
-            $table->timestamp('updated_at');
-        });
         DB::table('helpdesk_notification_settings')->insert([
             'admin_id' => 1,
             'enabled' => 1,
             'task_due' => 1,
-            'new_support_requests' => 1,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -821,25 +647,15 @@ class ExampleTest extends TestCase
             ['created_by' => 1, 'title' => 'Submit report', 'description' => null, 'due_date' => now()->toDateString(), 'status' => 'todo', 'completed_at' => null, 'created_at' => now(), 'updated_at' => now()],
             ['created_by' => 2, 'title' => 'Another admin task', 'description' => null, 'due_date' => now()->toDateString(), 'status' => 'todo', 'completed_at' => null, 'created_at' => now(), 'updated_at' => now()],
         ]);
-        DB::table('helpdesk_tickets')->insert([
-            ['id' => 1, 'subject' => 'New printer issue', 'status' => 'new', 'created_at' => now(), 'updated_at' => now()],
-            ['id' => 2, 'subject' => 'Network request', 'status' => 'in_progress', 'created_at' => now()->subHour(), 'updated_at' => now()],
-            ['id' => 3, 'subject' => 'Old request', 'status' => 'new', 'created_at' => now()->subHours(2), 'updated_at' => now()->subHours(2)],
-        ]);
-        $after = now()->subMinute()->toIso8601String();
-
         $response = $this->withSession(['user' => ['id' => 1, 'name' => 'Admin One', 'role' => 'admin']])
-            ->getJson('/admin/notifications?after='.urlencode($after))
+            ->getJson('/admin/notifications')
             ->assertOk()
             ->assertJsonPath('settings.enabled', true)
-            ->assertJsonCount(2, 'events');
+            ->assertJsonCount(1, 'events');
 
         $events = collect($response->json('events'));
         $this->assertTrue($events->contains(fn (array $event): bool => $event['title'] === 'Task due today' && $event['body'] === 'Submit report'));
-        $this->assertTrue($events->contains(fn (array $event): bool => $event['title'] === 'New support request' && $event['body'] === 'New printer issue'));
-        $this->assertFalse($events->contains(fn (array $event): bool => str_contains($event['title'], 'updated')));
 
-        Schema::drop('helpdesk_tickets');
         Schema::drop('helpdesk_accomplishments');
         Schema::drop('helpdesk_notification_settings');
         Schema::drop('helpdesk_users');
@@ -860,7 +676,6 @@ class ExampleTest extends TestCase
             $table->unsignedBigInteger('admin_id')->primary();
             $table->boolean('enabled')->default(false);
             $table->boolean('task_due')->default(true);
-            $table->boolean('new_support_requests')->default(true);
             $table->timestamps();
         });
     }

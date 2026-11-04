@@ -6,8 +6,6 @@ import { appUrl } from '../url';
 const adminLinks = [
     { key: 'overview', label: 'Overview', icon: '▦', href: '/admin' },
     { key: 'accomplishments', label: 'Accomplishment board', icon: '✓', href: '/admin/accomplishments' },
-    { key: 'tickets', label: 'Support requests', icon: '▤', href: '/admin/tickets' },
-    { key: 'notices', label: 'Public notices', icon: '▧', href: '/admin/notices' },
     { key: 'users', label: 'Admin accounts', icon: '♙', href: '/admin/users' },
     { key: 'database', label: 'MySQL database', icon: '▤', href: '/admin/database' },
     { key: 'id-generator', label: 'SP ID Generator', icon: '▧', href: '/admin/tools/id-generator' },
@@ -15,7 +13,7 @@ const adminLinks = [
 ];
 
 export default function DashboardLayout({ title, activePage, children }) {
-    const { auth, errors, flash, newTicketCount } = usePage().props;
+    const { auth, errors, flash } = usePage().props;
     const user = auth?.user;
     const [profileOpen, setProfileOpen] = useState(false);
     const [socialPanelOpen, setSocialPanelOpen] = useState(false);
@@ -60,14 +58,13 @@ export default function DashboardLayout({ title, activePage, children }) {
             <aside className="dashboard-sidebar">
                 <Link className="dashboard-brand" href={appUrl('/admin')}>
                     <span className="brand-mark brand-logo"><img src={appUrl('/public/assets/images/SP.ico')} alt="" /></span>
-                    <span>Jephthah <strong>Helpdesk</strong></span>
+                    <span>Jephthah's <strong>Workbench</strong></span>
                 </Link>
-                <p className="dashboard-nav-label">ADMINISTRATION</p>
+                <p className="dashboard-nav-label">WORKBENCH</p>
                 <nav className="dashboard-navigation" aria-label="Admin navigation" ref={navigationRef}>
                     {adminLinks.map((link) => (
                         <Link key={link.key} className={`dashboard-nav ${activePage === link.key ? 'active' : ''}`} href={appUrl(link.href)}>
                             <span>{link.icon}</span>{link.label}
-                            {link.key === 'tickets' && Number.isInteger(newTicketCount) && newTicketCount > 0 && <span className="nav-count">{newTicketCount}</span>}
                         </Link>
                     ))}
                 </nav>
@@ -75,7 +72,7 @@ export default function DashboardLayout({ title, activePage, children }) {
             </aside>
             <main className="dashboard-main">
                 <header className="dashboard-topbar">
-                    <div><span className="dashboard-crumb">Helpdesk /</span> {title}</div>
+                    <div><span className="dashboard-crumb">Workbench /</span> {title}</div>
                     <div className="topbar-user">
                         <BrowserNotifications userId={user?.id || 'admin'} />
                         <button className="social-panel-trigger" type="button" aria-expanded={socialPanelOpen} aria-controls="social-panel" onClick={() => setSocialPanelOpen((open) => !open)}>
@@ -108,7 +105,7 @@ export default function DashboardLayout({ title, activePage, children }) {
                     {flash?.error && <div className="dashboard-notice error" role="alert">{flash.error}</div>}
                     {errors?.form && <div className="dashboard-notice error" role="alert">{errors.form}</div>}
                     {children}
-                    <footer className="dashboard-footer">Jephthah Helpdesk <span>·</span> Administration</footer>
+                    <footer className="dashboard-footer">Jephthah's Workbench <span>·</span> Administration</footer>
                 </div>
             </main>
             <div className={`social-panel-backdrop${socialPanelOpen ? ' is-open' : ''}`} aria-hidden={!socialPanelOpen} onClick={() => setSocialPanelOpen(false)} />
@@ -117,7 +114,7 @@ export default function DashboardLayout({ title, activePage, children }) {
                     <div><span className="step-label">QUICK ACCESS</span><h2>Social apps</h2></div>
                     <button className="social-panel-close" type="button" aria-label="Close social apps panel" onClick={() => setSocialPanelOpen(false)}>×</button>
                 </div>
-                <p className="social-panel-note">Sign in directly with Meta. For your security, Facebook and Messenger open on their official websites rather than inside this helpdesk.</p>
+                <p className="social-panel-note">Sign in directly with Meta. For your security, Facebook and Messenger open on their official websites rather than inside this workbench.</p>
                 <a className="social-app-link messenger" href="https://www.messenger.com/" target="_blank" rel="noopener noreferrer">
                     <span className="social-app-mark" aria-hidden="true">M</span><span><strong>Messenger</strong><small>Open messenger.com</small></span><span className="social-app-arrow" aria-hidden="true">↗</span>
                 </a>

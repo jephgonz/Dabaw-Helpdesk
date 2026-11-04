@@ -5,12 +5,10 @@ import { appUrl } from '../url';
 const defaultSettings = {
     enabled: false,
     task_due: true,
-    new_support_requests: true,
 };
 
 const notificationOptions = [
     ['task_due', 'Tasks due today'],
-    ['new_support_requests', 'New public support requests'],
 ];
 
 function readStorage(key) {
@@ -38,10 +36,8 @@ export default function BrowserNotifications({ userId }) {
     const [error, setError] = useState('');
     const [permission, setPermission] = useState(() => ('Notification' in window ? window.Notification.permission : 'unsupported'));
     const menuRef = useRef(null);
-    const cursorRef = useRef(null);
     const deliveredRef = useRef(new Set());
-    const cursorKey = `helpdesk-notification-cursor-${userId}`;
-    const deliveredKey = `helpdesk-notification-delivered-${userId}`;
+    const deliveredKey = `workbench-notification-delivered-${userId}`;
 
     useEffect(() => {
         let cancelled = false;
@@ -58,10 +54,8 @@ export default function BrowserNotifications({ userId }) {
                     setLoaded(true);
                 }
             });
-        const savedCursor = readStorage(cursorKey);
-        cursorRef.current = savedCursor.value || new Date().toISOString();
         const savedDelivered = readStorage(deliveredKey);
-        if (savedCursor.failed || savedDelivered.failed) {
+        if (savedDelivered.failed) {
             setError('Browser storage is unavailable. Some notifications may repeat after a reload.');
         }
         if (savedDelivered.value) {
@@ -73,7 +67,7 @@ export default function BrowserNotifications({ userId }) {
             }
         }
         return () => { cancelled = true; };
-    }, [cursorKey, deliveredKey]);
+    }, [deliveredKey]);
 
     useEffect(() => {
         const closeOnOutsideClick = (event) => {
@@ -97,11 +91,8 @@ export default function BrowserNotifications({ userId }) {
             if (checking || document.visibilityState === 'hidden') return;
             checking = true;
             try {
-                const { data } = await axios.get(appUrl('/admin/notifications'), {
-                    params: { after: cursorRef.current },
-                });
-                cursorRef.current = data.checked_at;
-                let storageFailed = !writeStorage(cursorKey, data.checked_at);
+                const { data } = await axios.get(appUrl('/admin/notifications'));
+                let storageFailed = false;
                 const seen = deliveredRef.current;
                 for (const event of data.events) {
                     if (seen.has(event.id)) continue;
@@ -133,7 +124,7 @@ export default function BrowserNotifications({ userId }) {
             window.clearInterval(interval);
             document.removeEventListener('visibilitychange', checkNotifications);
         };
-    }, [cursorKey, deliveredKey, loaded, permission, settings.enabled]);
+    }, [deliveredKey, loaded, permission, settings.enabled]);
 
     const saveSettings = async (nextSettings) => {
         const previousSettings = settings;
@@ -187,7 +178,7 @@ export default function BrowserNotifications({ userId }) {
                 <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
             </button>
             <section className={`notification-menu${open ? ' is-open' : ''}`} id="notification-menu" aria-hidden={!open} inert={!open}>
-                <div className="notification-menu-heading"><div><strong>Browser notifications</strong><small>Alerts while the helpdesk is open</small></div><span className={`notification-state${settings.enabled && permission === 'granted' ? ' is-enabled' : ''}`}>{settings.enabled && permission === 'granted' ? 'On' : 'Off'}</span></div>
+                <div className="notification-menu-heading"><div><strong>Browser notifications</strong><small>Alerts while the workbench is open</small></div><span className={`notification-state${settings.enabled && permission === 'granted' ? ' is-enabled' : ''}`}>{settings.enabled && permission === 'granted' ? 'On' : 'Off'}</span></div>
                 <div className="notification-menu-content">
                     {!settings.enabled || permission !== 'granted'
                         ? <button className="sign-in-button notification-enable" type="button" disabled={!loaded || saving} onClick={enableNotifications}>{saving ? 'Saving…' : 'Enable browser alerts'}</button>
@@ -196,7 +187,7 @@ export default function BrowserNotifications({ userId }) {
                         <legend>Notify me about</legend>
                         {notificationOptions.map(([key, label]) => <label className="notification-option" key={key}><input type="checkbox" checked={settings[key]} onChange={(event) => saveSettings({ ...settings, [key]: event.target.checked })} /><span>{label}</span></label>)}
                     </fieldset>
-                    <p className="notification-help">Task reminders appear on the due date. New requests are checked every 30 seconds.</p>
+                    <p className="notification-help">Task reminders appear on the due date.</p>
                     {error && <p className="notification-error" role="alert">{error}</p>}
                 </div>
             </section>

@@ -56,7 +56,7 @@ class AuthController extends Controller
                 }
             }
         } catch (\Throwable $exception) {
-            Log::error('Helpdesk sign-in failed.', ['exception' => $exception]);
+            Log::error('Workbench sign-in failed.', ['exception' => $exception]);
             return back()->withErrors([
                 'login' => 'The sign-in service is unavailable. Check the local database configuration.',
             ])->onlyInput('email');
@@ -73,7 +73,7 @@ class AuthController extends Controller
         if (session_status() === PHP_SESSION_ACTIVE) {
             session_write_close();
         }
-        session_name('dabaw_helpdesk_tool');
+        session_name('jephthahs_workbench_tool');
         session_set_cookie_params([
             'httponly' => true,
             'secure' => $request->isSecure(),
@@ -83,7 +83,7 @@ class AuthController extends Controller
         session_start();
         $_SESSION = [];
         session_destroy();
-        setcookie('dabaw_helpdesk_tool', '', [
+        setcookie('jephthahs_workbench_tool', '', [
             'expires' => time() - 3600,
             'path' => '/helpdesk',
             'secure' => $request->isSecure(),

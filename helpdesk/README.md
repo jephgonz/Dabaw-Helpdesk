@@ -1,6 +1,6 @@
-# Jephthah Helpdesk
+# Jephthah's Workbench
 
-Jephthah Helpdesk uses Laravel 12 with Inertia.js and React. The public landing page accepts support reports and displays the latest notices and support totals. Only administrator accounts can sign in to the management dashboard. Existing account and ticket data remain in the `helpdesk_users` and `helpdesk_tickets` MySQL tables. Laravel migrations create missing application tables without replacing existing tables.
+Jephthah's Workbench uses Laravel 12 with Inertia.js and React. Sign in at `/` to access the administrator workspace, which includes task management, administrator accounts, database tools, the SP ID Generator, and monthly CSV allocation. Existing administrator accounts remain in the `helpdesk_users` MySQL table.
 
 ## Local setup
 
@@ -14,7 +14,7 @@ Jephthah Helpdesk uses Laravel 12 with Inertia.js and React. The public landing 
    npm run build
    ```
 
-4. When upgrading an existing installation, run `php bin/migrate.php` once to complete the username, role, and ticket-resolution schema updates. It is idempotent and preserves existing rows. Generate an application key once if `APP_KEY` is empty, then run the Laravel migration:
+4. When upgrading an existing installation, run `php bin/migrate.php` once to complete the username and role schema updates. It is idempotent and preserves existing administrator rows. Back up the database before applying Laravel migrations. Generate an application key once if `APP_KEY` is empty, then run:
 
    ```powershell
    php artisan key:generate
@@ -24,7 +24,9 @@ Jephthah Helpdesk uses Laravel 12 with Inertia.js and React. The public landing 
    Do not run `migrate:fresh` or `db:wipe`; those commands remove application data.
 5. For a new installation only, set `INITIAL_ADMIN_NAME`, `INITIAL_ADMIN_EMAIL`, and a 12-character-or-longer `INITIAL_ADMIN_PASSWORD`, then run `php bin/setup.php`. The one-time credentials are removed from `.env` after setup.
 
-The root URL `http://localhost/` is the public landing page. Anyone can submit a support report, view published notices and support totals, and open attached memo images. Reports are rate limited and stored without a linked account; contact name and email are required. Administrators sign in at `/admin/login` with email and password. Email addresses are not unique. Authenticated administrators can manage administrator accounts, support requests, resolution charts, database tables and SQL import/export, public notices, and the SP ID Generator. Apply migration `2026_10_19_000007_allow_public_helpdesk_reports` to allow anonymous reports on an existing installation.
+The root URL is the workbench sign-in page; successful sign-in opens the administrator dashboard. Email addresses are not unique. The workbench includes task reminders, administrator account management, database tables and SQL import/export, the SP ID Generator, and monthly CSV allocation.
+
+Migration `2026_11_04_000000_remove_tickets_and_notices` permanently deletes the support-ticket and notice tables, their stored notice attachments, and the support-request notification preference. It preserves administrator accounts, tasks, settings, and other tables. This migration cannot be rolled back, and deleted data cannot be recovered; make a backup before applying it.
 
 Only administrator accounts are supported. Migration `2026_10_20_000000_remove_chat_and_disable_staff_accounts` disables existing staff accounts but preserves their records; they cannot be reactivated or promoted through the application. That migration also permanently deletes chat conversations, messages, and related chat tables, and cannot be rolled back. Deleted chat history cannot be recovered.
 
@@ -32,7 +34,7 @@ Migration `2026_10_20_000001_remove_task_board_feature` permanently removes the 
 
 Laravel uses the file cache by default, including for request throttling. The database cache and lock tables are not needed. If `.env` explicitly sets `CACHE_STORE=database`, change it to `CACHE_STORE=file` before migrating. Migration `2026_10_20_000002_remove_database_cache_tables` permanently drops `cache` and `cache_locks`; existing cached values are discarded.
 
-The SQL tools back up the configured Laravel database, including its migration history, as portable MySQL SQL. Restores are limited to 25 MB, require explicit replacement confirmation, and apply any pending Laravel migrations after import. Imports accept table definitions and data only; database-level commands, routines, and triggers are not imported. Export files contain password hashes and other sensitive data; keep them private. Notice image attachments are stored privately under `storage/app/private/notice-attachments` and are served through the public helpdesk route; include that directory in file backups, because SQL exports contain only database data.
+The SQL tools back up the configured Laravel database, including its migration history, as portable MySQL SQL. Restores are limited to 25 MB, require explicit replacement confirmation, and apply any pending Laravel migrations after import. Imports accept table definitions and data only; database-level commands, routines, and triggers are not imported. Export files contain password hashes and other sensitive data; keep them private.
 
 The SP ID Generator is part of the Laravel admin application. Its React page is in `resources/js/Pages/Admin/IdGenerator.jsx`, and its GD-based card composition is in `app/Services/IdCardGenerator.php`. The card template and required fonts remain under `public/tools/sp-id-generator/img`; PHP GD with FreeType support must be enabled to generate cards. The old `/tools/sp-id-generator/` URL redirects to the admin page.
 

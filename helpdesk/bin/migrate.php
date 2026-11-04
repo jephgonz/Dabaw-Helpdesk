@@ -51,28 +51,9 @@ try {
         throw new RuntimeException('The helpdesk role column does not have the expected admin/staff values.');
     }
 
-    $ticketMigration = file_get_contents(__DIR__ . '/../database/migrations/002_create_support_tickets.sql');
-    if ($ticketMigration === false) {
-        throw new RuntimeException('The support ticket migration file could not be read.');
-    }
-    $pdo->exec($ticketMigration);
-
-    $resolvedAtColumn = $pdo->prepare("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'helpdesk_tickets' AND COLUMN_NAME = 'resolved_at'");
-    $resolvedAtColumn->execute();
-    if ((int) $resolvedAtColumn->fetchColumn() === 0) {
-        $pdo->exec('ALTER TABLE helpdesk_tickets ADD COLUMN resolved_at TIMESTAMP NULL DEFAULT NULL AFTER status');
-    }
-    $pdo->exec("UPDATE helpdesk_tickets SET resolved_at = updated_at WHERE status = 'resolved' AND resolved_at IS NULL");
-
-    $resolvedAtIndex = $pdo->prepare("SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'helpdesk_tickets' AND INDEX_NAME = 'idx_helpdesk_tickets_resolved_at'");
-    $resolvedAtIndex->execute();
-    if ((int) $resolvedAtIndex->fetchColumn() === 0) {
-        $pdo->exec('ALTER TABLE helpdesk_tickets ADD KEY idx_helpdesk_tickets_resolved_at (resolved_at)');
-    }
-
-    fwrite(STDOUT, "Helpdesk account and support ticket schemas are ready. Existing staff usernames and roles were migrated where needed, and duplicate emails are allowed.\n");
+    fwrite(STDOUT, "Workbench administrator account schema is ready. Existing staff usernames and roles were migrated where needed, and duplicate emails are allowed.\n");
 } catch (Throwable $exception) {
-    error_log('Helpdesk migration error: ' . $exception->getMessage());
+    error_log('Workbench account migration error: ' . $exception->getMessage());
     fwrite(STDERR, "Migration failed. Check database access and the PHP error log.\n");
     exit(1);
 }

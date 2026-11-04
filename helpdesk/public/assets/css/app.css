@@ -704,7 +704,7 @@ button:focus-visible,a[href]:focus-visible{outline:2px solid #6689c4;outline-off
 @media(max-width:760px){.accomplishment-page-heading{align-items:flex-start}.accomplishment-page-heading .dashboard-subtitle{font-size:13px}.accomplishment-add-button{min-height:42px}.accomplishment-stats{gap:8px}.accomplishment-stat{min-height:108px;padding:15px}.accomplishment-toolbar{margin-right:-17px;margin-left:-17px;padding-right:17px;padding-left:17px}.accomplishment-item{padding:14px}}
 @media(max-width:460px){.accomplishment-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.accomplishment-stat:last-child{grid-column:1/-1}.accomplishment-form-row{grid-template-columns:1fr}.accomplishment-board-card,.accomplishment-editor{padding:16px}.accomplishment-toolbar{margin-right:-16px;margin-left:-16px;padding-right:16px;padding-left:16px}.quarter-report-form{display:grid;grid-template-columns:1fr 1fr;align-items:end}.quarter-report-form label{min-width:0}.quarter-report-form input,.quarter-report-form select{width:100%}.report-download{grid-column:1/-1;width:100%}.accomplishment-item{flex-direction:column}.accomplishment-actions{align-self:flex-end}}
 
-.overview-page{width:min(100%,1240px);margin:0 auto;gap:22px}
+.overview-page{gap:22px}
 .overview-page>.dashboard-title-row h1{font-size:32px}
 .overview-page .dashboard-subtitle{max-width:680px;font-size:14px;line-height:1.55}
 .overview-page .overview-tasks-card{margin:0;padding:24px}
@@ -753,4 +753,145 @@ button:focus-visible,a[href]:focus-visible{outline:2px solid #6689c4;outline-off
 }
 @media(max-width:340px){
     .overview-page .stat-grid{grid-template-columns:1fr}
+}
+
+:root{
+    --space-1:4px;
+    --space-2:8px;
+    --space-3:12px;
+    --space-4:16px;
+    --space-5:20px;
+    --space-6:24px;
+    --space-7:32px;
+    --space-8:40px;
+    --card-radius:14px;
+    --card-shadow:0 6px 22px rgba(24,43,75,.045);
+}
+
+.dashboard-sidebar{width:264px;padding:26px 18px 20px}
+.dashboard-brand{gap:12px;padding:0 8px 38px;font-size:15px}
+.dashboard-main{margin-left:264px}
+.dashboard-topbar{min-height:68px;height:auto;padding:12px clamp(20px,3vw,40px);font-size:14px}
+.topbar-user{gap:10px}
+.dashboard-content{max-width:1480px;padding:clamp(24px,3.2vw,44px)}
+.laravel-content{font-size:15px}
+.laravel-content .dashboard-title-row{align-items:flex-end;gap:20px;margin-bottom:26px}
+.laravel-content .dashboard-title-row h1{font-size:clamp(27px,2.4vw,34px);line-height:1.15;letter-spacing:-.04em}
+.laravel-content .dashboard-subtitle{max-width:760px;font-size:14px;line-height:1.6}
+.laravel-content .eyebrow,.laravel-content .step-label,.laravel-content .database-info-label{font-size:11px;letter-spacing:.11em}
+.laravel-content .admin-card{border-radius:var(--card-radius);box-shadow:var(--card-shadow)}
+.laravel-content .admin-card-heading{align-items:flex-start;gap:16px;margin-bottom:20px}
+.laravel-content .admin-card-heading h2{font-size:20px;line-height:1.3}
+.laravel-content .admin-card-heading p{max-width:760px;font-size:14px;line-height:1.6}
+.laravel-content .stat-grid{gap:16px}
+.laravel-content .stat-card{min-height:132px;padding:20px;border-radius:var(--card-radius);box-shadow:var(--card-shadow)}
+.laravel-content .stat-label,.laravel-content .stat-card small{font-size:13px;line-height:1.45}
+.laravel-content .stat-card strong{font-size:32px}
+.laravel-content .quick-links{gap:16px}
+.laravel-content .quick-link{min-height:104px;gap:14px;padding:20px;border-radius:var(--card-radius);box-shadow:var(--card-shadow)}
+.laravel-content .quick-link strong{font-size:14px;line-height:1.4}
+.laravel-content .quick-link small{font-size:13px;line-height:1.5}
+.laravel-content .admin-grid{gap:20px}
+.laravel-content .admin-card{padding:24px}
+.laravel-content .account-form{gap:16px}
+.laravel-content .account-form label{font-size:14px;line-height:1.45}
+.laravel-content .account-form input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),.laravel-content .account-form select,.laravel-content .account-form textarea{min-height:46px;font-size:14px}
+.laravel-content .account-form label small{font-size:12px;line-height:1.5}
+.laravel-content .sign-in-button,.laravel-content .secondary-action{min-height:42px;padding-right:16px;padding-left:16px;font-size:14px}
+.laravel-content .table-wrap{max-width:100%;overflow-x:auto;border:1px solid #edf0f4;border-radius:10px}
+.laravel-content .accounts-card table{min-width:680px}
+.laravel-content .accounts-card th{padding:13px 12px;font-size:11px;letter-spacing:.06em}
+.laravel-content .accounts-card td{padding:14px 12px;font-size:13px}
+.laravel-content .accounts-card td strong{font-size:14px}
+.laravel-content .accounts-card td small{font-size:12px}
+.laravel-content .dashboard-footer{padding:28px 0 8px;font-size:12px}
+.overview-page{gap:22px}
+.overview-page .dashboard-title-row h1{font-size:clamp(28px,2.5vw,36px)}
+.overview-page .overview-tasks-card{padding:26px}
+.overview-page .overview-tasks-heading h2{font-size:21px}
+.overview-page .overview-task-link{min-height:56px;padding:12px 14px}
+.overview-page .stat-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.overview-page .stat-card{min-height:132px;padding:20px}
+.overview-page .quick-links{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.overview-page .quick-link{min-height:104px;padding:18px}
+.accomplishment-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.accomplishment-stat{min-height:132px;padding:22px;border-radius:var(--card-radius);box-shadow:var(--card-shadow)}
+.accomplishment-toolbar{gap:18px}
+.accomplishment-item{padding:20px;border-radius:12px}
+.allocation-controls{gap:16px}
+.allocation-summary{gap:12px}
+.allocation-summary>div{min-height:76px;align-content:center;padding:15px}
+.database-summary,.database-live-summary{gap:16px}
+.database-info-card{min-height:128px;padding:20px;border-radius:var(--card-radius);box-shadow:var(--card-shadow)}
+.database-tables-card,.database-workbench{padding:24px}
+
+@media(max-width:1100px){
+    .dashboard-sidebar{width:236px}
+    .dashboard-main{margin-left:236px}
+    .dashboard-content{padding:28px}
+    .overview-page .quick-links{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+@media(max-width:760px){
+    .dashboard-sidebar{position:sticky;top:0;width:100%;padding:10px 14px}
+    .dashboard-brand{padding:0 2px 8px;font-size:14px}
+    .dashboard-main{margin-left:0}
+    .dashboard-topbar{min-height:60px;padding:10px 16px}
+    .dashboard-content{padding:24px 18px}
+    .laravel-content .dashboard-title-row{align-items:flex-start;flex-direction:column;gap:10px;margin-bottom:22px}
+    .laravel-content .dashboard-title-row h1{font-size:28px}
+    .laravel-content .dashboard-subtitle{font-size:14px}
+    .laravel-content .admin-card{padding:20px}
+    .laravel-content .stat-grid{gap:12px}
+    .laravel-content .quick-links{gap:12px}
+    .overview-page{gap:18px}
+    .overview-page .overview-tasks-card{padding:20px}
+    .overview-page .stat-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    .overview-page .quick-links{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    .overview-page .stat-card{min-height:118px;padding:16px}
+    .accomplishment-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .accomplishment-stat{min-height:116px;padding:17px}
+    .accomplishment-toolbar{gap:14px}
+    .accomplishment-item{gap:14px;padding:16px}
+    .allocation-controls{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    .allocation-summary{gap:10px}
+    .database-summary,.database-live-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+}
+
+@media(max-width:560px){
+    .dashboard-sidebar{padding:9px 10px}
+    .dashboard-brand{padding-bottom:7px}
+    .dashboard-navigation{gap:5px}
+    .dashboard-nav{min-height:42px;padding:0 11px;font-size:12px}
+    .dashboard-topbar{min-height:56px;padding:8px 12px}
+    .topbar-user{gap:7px}
+    .social-panel-trigger{width:36px;min-height:36px;justify-content:center;padding:0}
+    .social-panel-trigger>span:nth-child(2){display:none}
+    .dashboard-content{padding:20px 14px}
+    .laravel-content .dashboard-title-row h1{font-size:26px}
+    .laravel-content .admin-card{padding:17px}
+    .laravel-content .admin-card-heading{gap:10px;margin-bottom:16px}
+    .laravel-content .admin-card-heading h2{font-size:18px}
+    .overview-page .overview-tasks-card{padding:17px}
+    .overview-page .overview-tasks-heading{align-items:flex-start}
+    .overview-page .stat-grid,.overview-page .quick-links{grid-template-columns:1fr}
+    .overview-page .stat-card{min-height:104px}
+    .overview-page .quick-link{min-height:82px}
+    .accomplishment-stat:last-child{grid-column:auto}
+    .overview-task-summary-tile{min-height:66px}
+    .overview-task-link{flex-wrap:wrap}
+    .allocation-controls{grid-template-columns:minmax(0,1fr)}
+    .allocation-actions{align-items:stretch;flex-direction:column}
+    .allocation-actions .sign-in-button,.allocation-actions .secondary-action{width:100%}
+    .allocation-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .database-summary,.database-live-summary{grid-template-columns:minmax(0,1fr)}
+    .database-workbench-actions{align-items:stretch;flex-direction:column}
+    .form-actions{align-items:stretch;flex-direction:column}
+    .form-actions .sign-in-button{width:100%}
+    .quarter-report-form{display:grid;grid-template-columns:1fr 1fr}
+    .quarter-report-form label{min-width:0}
+    .quarter-report-form input,.quarter-report-form select{width:100%}
+    .report-download{grid-column:1/-1;width:100%}
+    .accomplishment-filters .filter-chip,.accomplishment-actions .task-action,.quarter-report-form input,.quarter-report-form select,.quarter-report-form .report-download{min-height:44px}
+    .accomplishment-actions .task-action{min-width:44px}
 }

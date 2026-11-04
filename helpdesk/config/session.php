@@ -127,7 +127,7 @@ return [
     |
     */
 
-    'cookie' => env('SESSION_COOKIE', 'dabaw_helpdesk_laravel'),
+    'cookie' => env('SESSION_COOKIE', 'jephthahs_workbench'),
 
     /*
     |--------------------------------------------------------------------------

@@ -143,7 +143,7 @@ export default function Database({ databaseName, serverVersion, tables = [], con
     };
 
     return <DashboardLayout title="MySQL database" activePage="database">
-        <div className="dashboard-title-row"><div><p className="eyebrow">SYSTEM</p><h1>MySQL database</h1><p className="dashboard-subtitle">Connection status and tables available to Helpdesk.</p></div><div className="title-actions"><a className="secondary-action" href="https://console.aiven.io/" target="_blank" rel="noopener noreferrer">Aiven Console ↗</a><a className="secondary-action" href={appUrl('/admin/database')}>↻ Refresh</a></div></div>
+        <div className="dashboard-title-row"><div><p className="eyebrow">SYSTEM</p><h1>MySQL database</h1><p className="dashboard-subtitle">Connection status and tables available to the workbench.</p></div><div className="title-actions"><a className="secondary-action" href="https://console.aiven.io/" target="_blank" rel="noopener noreferrer">Aiven Console ↗</a><a className="secondary-action" href={appUrl('/admin/database')}>↻ Refresh</a></div></div>
         <section className="admin-card accounts-card database-tables-card"><div className="admin-card-heading accounts-heading"><div><span className="step-label">SCHEMA OVERVIEW</span><h2>Tables</h2><p>Browse and manage table data in the configured MySQL schema.</p></div><span className="account-count">{tables.length} tables</span></div>
             {tables.length === 0 ? <div className="empty-state"><span>▤</span><strong>No tables found</strong><small>The configured database has no visible tables.</small></div> : <>
                 <label className="database-table-search" htmlFor="database-table-search">Filter tables<input id="database-table-search" type="search" value={tableSearch} onChange={(event) => setTableSearch(event.target.value)} placeholder="Search table names…" /></label>
@@ -152,7 +152,7 @@ export default function Database({ databaseName, serverVersion, tables = [], con
         </section>
         <section className="database-summary" aria-label="Database connection details">
             <article className="database-info-card"><span className="database-info-label">Connection</span><strong className={`database-state ${connected ? 'online' : 'offline'}`}><span />{connected ? 'Connected' : 'Unavailable'}</strong><small>{connected ? 'Using the configured MySQL connection.' : 'Check the configured MySQL connection.'}</small></article>
-            <article className="database-info-card"><span className="database-info-label">Database</span><strong>{databaseName}</strong><small>MySQL schema used by Helpdesk</small></article>
+            <article className="database-info-card"><span className="database-info-label">Database</span><strong>{databaseName}</strong><small>MySQL schema used by the workbench</small></article>
             <article className="database-info-card"><span className="database-info-label">Server version</span><strong>{serverVersion}</strong><small>Configured MySQL server</small></article>
         </section>
         <ConnectionMonitor />

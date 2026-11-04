@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,7 +12,6 @@ class BrowserNotificationController extends Controller
     private const DEFAULT_SETTINGS = [
         'enabled' => false,
         'task_due' => true,
-        'new_support_requests' => true,
     ];
 
     public function settings(Request $request): JsonResponse
@@ -32,7 +30,6 @@ class BrowserNotificationController extends Controller
         $validated = $request->validate([
             'enabled' => ['required', 'boolean'],
             'task_due' => ['required', 'boolean'],
-            'new_support_requests' => ['required', 'boolean'],
         ]);
         $adminId = (int) $request->session()->get('user.id');
 
@@ -42,7 +39,6 @@ class BrowserNotificationController extends Controller
                 [
                     'enabled' => (bool) $validated['enabled'],
                     'task_due' => (bool) $validated['task_due'],
-                    'new_support_requests' => (bool) $validated['new_support_requests'],
                     'updated_at' => now(),
                     'created_at' => now(),
                 ]
@@ -58,9 +54,6 @@ class BrowserNotificationController extends Controller
 
     public function poll(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'after' => ['nullable', 'date'],
-        ]);
         $adminId = (int) $request->session()->get('user.id');
 
         try {
@@ -70,12 +63,8 @@ class BrowserNotificationController extends Controller
                 return response()->json([
                     'settings' => $settings,
                     'events' => $events,
-                    'checked_at' => now()->toIso8601String(),
                 ]);
             }
-            $after = isset($validated['after'])
-                ? CarbonImmutable::parse($validated['after'])->subSeconds(2)
-                : CarbonImmutable::now();
 
             if ($settings['task_due']) {
                 $tasks = DB::table('helpdesk_accomplishments')
@@ -95,22 +84,6 @@ class BrowserNotificationController extends Controller
                 }
             }
 
-            if ($settings['new_support_requests']) {
-                $tickets = DB::table('helpdesk_tickets')
-                    ->where('created_at', '>', $after)
-                    ->orderBy('created_at')
-                    ->limit(20)
-                    ->get(['id', 'subject']);
-                foreach ($tickets as $ticket) {
-                    $events[] = [
-                        'id' => 'ticket-new-'.$ticket->id,
-                        'title' => 'New support request',
-                        'body' => $ticket->subject,
-                        'url' => '/admin/tickets',
-                    ];
-                }
-            }
-
         } catch (\Throwable $exception) {
             Log::error('Browser notifications could not be checked.', ['exception' => $exception, 'admin_id' => $adminId]);
 
@@ -120,7 +93,6 @@ class BrowserNotificationController extends Controller
         return response()->json([
             'settings' => $settings,
             'events' => $events,
-            'checked_at' => now()->toIso8601String(),
         ]);
     }
 
@@ -134,7 +106,6 @@ class BrowserNotificationController extends Controller
         return [
             'enabled' => (bool) $settings->enabled,
             'task_due' => (bool) $settings->task_due,
-            'new_support_requests' => (bool) $settings->new_support_requests,
         ];
     }
 }
