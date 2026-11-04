@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useForm, usePage } from '@inertiajs/react';
 import DashboardLayout from '../../Components/DashboardLayout';
 import FilePicker from '../../Components/FilePicker';
@@ -77,10 +77,65 @@ function ConnectionMonitor() {
     </section>;
 }
 
+function SqlWorkbench() {
+    const formRef = useRef(null);
+    const [sql, setSql] = useState('SELECT TABLE_NAME, ENGINE, TABLE_ROWS\nFROM INFORMATION_SCHEMA.TABLES\nWHERE TABLE_SCHEMA = DATABASE()\nORDER BY TABLE_NAME;');
+    const [result, setResult] = useState(null);
+    const [error, setError] = useState('');
+    const [running, setRunning] = useState(false);
+
+    const execute = async (event) => {
+        event.preventDefault();
+        const changesData = !/^\s*(SELECT|SHOW|DESCRIBE|DESC|EXPLAIN)\b/i.test(sql);
+        if (changesData && !window.confirm('This statement can change database data or schema. Continue?')) return;
+
+        setRunning(true);
+        setError('');
+        setResult(null);
+        try {
+            const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            if (!token) throw new Error('The security token is missing. Refresh the page and try again.');
+            const response = await fetch(appUrl('/admin/database/query'), {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': token },
+                body: JSON.stringify({ sql, confirm_changes: changesData }),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'The query could not be completed.');
+            setResult(data);
+        } catch (reason) {
+            setError(reason.message || 'The query could not be completed.');
+        } finally {
+            setRunning(false);
+        }
+    };
+
+    return <section className="admin-card database-workbench" aria-label="SQL workbench">
+        <div className="admin-card-heading accounts-heading"><div><span className="step-label">SQL WORKBENCH</span><h2>Query editor</h2><p>Run a single SQL statement against the configured database. Results are limited to 200 rows.</p></div><span className="section-mark">SQL</span></div>
+        <form ref={formRef} onSubmit={execute}>
+            <label className="database-sql-label" htmlFor="database-sql">SQL statement</label>
+            <textarea id="database-sql" className="database-sql-editor" value={sql} onChange={(event) => setSql(event.target.value)} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); formRef.current?.requestSubmit(); } }} spellCheck="false" autoCapitalize="off" autoCorrect="off" />
+            <div className="database-workbench-actions"><small>Ctrl + Enter to run · Data and schema changes require confirmation.</small><button className="sign-in-button" type="submit" disabled={running || !sql.trim()}>{running ? 'Running…' : 'Run query'}</button></div>
+        </form>
+        {error && <div className="dashboard-notice error" role="alert">{error}</div>}
+        {result && <div className="database-query-result" role="status">
+            <div className="database-query-meta"><strong>{result.columns.length ? `${result.rowCount} row${result.rowCount === 1 ? '' : 's'}` : `${result.affectedRows} row${result.affectedRows === 1 ? '' : 's'} affected`}</strong><span>{result.durationMs} ms</span></div>
+            {result.columns.length > 0 && <div className="table-wrap"><table><thead><tr>{result.columns.map((column, index) => <th key={`${column}-${index}`}>{column}</th>)}</tr></thead><tbody>{result.rows.length === 0 ? <tr><td colSpan={result.columns.length}>Query returned no rows.</td></tr> : result.rows.map((row, rowIndex) => <tr key={rowIndex}>{result.columns.map((column, columnIndex) => {
+                const value = row[columnIndex];
+                return <td key={`${column}-${columnIndex}`}>{value === null ? <span className="muted-cell">NULL</span> : String(value)}</td>;
+            })}</tr>)}</tbody></table></div>}
+            {result.truncated && <small className="database-query-truncated">Output was capped at 200 rows and 50 columns. Refine the query to see more detail.</small>}
+        </div>}
+    </section>;
+}
+
 export default function Database({ databaseName, serverVersion, tables = [], connected = false }) {
     const form = useForm({ sql_file: null, confirm_replace: false });
     const { errors } = usePage().props;
     const fileInput = useRef(null);
+    const [tableSearch, setTableSearch] = useState('');
+    const filteredTables = useMemo(() => tables.filter((table) => table.name.toLowerCase().includes(tableSearch.trim().toLowerCase())), [tables, tableSearch]);
     const submit = (event) => {
         event.preventDefault();
         if (!window.confirm('Import may drop and replace tables and data in the configured database. Continue?')) return;
@@ -88,10 +143,12 @@ export default function Database({ databaseName, serverVersion, tables = [], con
     };
 
     return <DashboardLayout title="MySQL database" activePage="database">
-        <div className="dashboard-title-row"><div><p className="eyebrow">SYSTEM</p><h1>MySQL database</h1><p className="dashboard-subtitle">Connection status and tables available to Helpdesk.</p></div><a className="secondary-action" href={appUrl('/admin/database')}>↻ Refresh</a></div>
+        <div className="dashboard-title-row"><div><p className="eyebrow">SYSTEM</p><h1>MySQL database</h1><p className="dashboard-subtitle">Connection status and tables available to Helpdesk.</p></div><div className="title-actions"><a className="secondary-action" href="https://console.aiven.io/" target="_blank" rel="noopener noreferrer">Aiven Console ↗</a><a className="secondary-action" href={appUrl('/admin/database')}>↻ Refresh</a></div></div>
         <section className="admin-card accounts-card database-tables-card"><div className="admin-card-heading accounts-heading"><div><span className="step-label">SCHEMA OVERVIEW</span><h2>Tables</h2><p>Browse and manage table data in the configured MySQL schema.</p></div><span className="account-count">{tables.length} tables</span></div>
-            {tables.length === 0 ? <div className="empty-state"><span>▤</span><strong>No tables found</strong><small>The configured database has no visible tables.</small></div> :
-                <div className="table-wrap"><table><thead><tr><th>Table</th><th>Engine</th><th>Estimated rows</th><th>Data + indexes</th><th /></tr></thead><tbody>{tables.map((table) => <tr key={table.name}><td><strong>{table.name}</strong></td><td>{table.engine || '—'}</td><td>{Number(table.rows_estimate || 0).toLocaleString()}</td><td>{(Number(table.bytes || 0) / 1048576).toFixed(2)} MB</td><td><Link className="table-action" href={`${appUrl('/admin/database/table')}?table=${encodeURIComponent(table.name)}`}>Browse rows <span>→</span></Link></td></tr>)}</tbody></table></div>}
+            {tables.length === 0 ? <div className="empty-state"><span>▤</span><strong>No tables found</strong><small>The configured database has no visible tables.</small></div> : <>
+                <label className="database-table-search" htmlFor="database-table-search">Filter tables<input id="database-table-search" type="search" value={tableSearch} onChange={(event) => setTableSearch(event.target.value)} placeholder="Search table names…" /></label>
+                <div className="table-wrap"><table><thead><tr><th>Table</th><th>Engine</th><th>Estimated rows</th><th>Data + indexes</th><th /></tr></thead><tbody>{filteredTables.length === 0 ? <tr><td colSpan="5">No tables match that search.</td></tr> : filteredTables.map((table) => <tr key={table.name}><td><strong>{table.name}</strong></td><td>{table.engine || '—'}</td><td>{Number(table.rows_estimate || 0).toLocaleString()}</td><td>{(Number(table.bytes || 0) / 1048576).toFixed(2)} MB</td><td><Link className="table-action" href={`${appUrl('/admin/database/table')}?table=${encodeURIComponent(table.name)}`}>Browse rows <span>→</span></Link></td></tr>)}</tbody></table></div>
+            </>}
         </section>
         <section className="database-summary" aria-label="Database connection details">
             <article className="database-info-card"><span className="database-info-label">Connection</span><strong className={`database-state ${connected ? 'online' : 'offline'}`}><span />{connected ? 'Connected' : 'Unavailable'}</strong><small>{connected ? 'Using the configured MySQL connection.' : 'Check the configured MySQL connection.'}</small></article>
@@ -99,6 +156,7 @@ export default function Database({ databaseName, serverVersion, tables = [], con
             <article className="database-info-card"><span className="database-info-label">Server version</span><strong>{serverVersion}</strong><small>Configured MySQL server</small></article>
         </section>
         <ConnectionMonitor />
+        <SqlWorkbench />
         <section className="database-transfer-grid" aria-label="Database import and export">
             <article className="admin-card database-transfer-card"><div className="admin-card-heading"><div><span className="step-label">BACKUP</span><h2>Export database</h2><p>Download a Laravel-compatible MySQL SQL backup with table definitions and data, including Laravel migration history. It can also be opened in phpMyAdmin or MySQL Workbench.</p></div><span className="section-mark">↓</span></div><a className="secondary-action primary-action" href={appUrl('/admin/database/export')}>Download SQL backup</a><p className="database-transfer-warning">The backup includes password hashes and other database contents. Keep the file private.</p></article>
             <article className="admin-card database-transfer-card"><div className="admin-card-heading"><div><span className="step-label">RESTORE</span><h2>Restore database</h2><p>Restore a .sql backup into the database configured for this Laravel application. Pending Laravel migrations run after the import.</p></div><span className="section-mark">↑</span></div>

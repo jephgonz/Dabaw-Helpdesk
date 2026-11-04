@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import BrowserNotifications from './BrowserNotifications';
 import { appUrl } from '../url';
 
 const adminLinks = [
     { key: 'overview', label: 'Overview', icon: '▦', href: '/admin' },
+    { key: 'accomplishments', label: 'Accomplishment board', icon: '✓', href: '/admin/accomplishments' },
     { key: 'tickets', label: 'Support requests', icon: '▤', href: '/admin/tickets' },
     { key: 'notices', label: 'Public notices', icon: '▧', href: '/admin/notices' },
     { key: 'users', label: 'Admin accounts', icon: '♙', href: '/admin/users' },
@@ -16,6 +18,7 @@ export default function DashboardLayout({ title, activePage, children }) {
     const { auth, errors, flash, newTicketCount } = usePage().props;
     const user = auth?.user;
     const [profileOpen, setProfileOpen] = useState(false);
+    const [socialPanelOpen, setSocialPanelOpen] = useState(false);
     const profileRef = useRef(null);
     const navigationRef = useRef(null);
     const profile = useForm({
@@ -31,7 +34,10 @@ export default function DashboardLayout({ title, activePage, children }) {
             if (!profileRef.current?.contains(event.target)) setProfileOpen(false);
         };
         const closeOnEscape = (event) => {
-            if (event.key === 'Escape') setProfileOpen(false);
+            if (event.key === 'Escape') {
+                setProfileOpen(false);
+                setSocialPanelOpen(false);
+            }
         };
         document.addEventListener('pointerdown', closeOnOutsideClick);
         document.addEventListener('keydown', closeOnEscape);
@@ -71,6 +77,10 @@ export default function DashboardLayout({ title, activePage, children }) {
                 <header className="dashboard-topbar">
                     <div><span className="dashboard-crumb">Helpdesk /</span> {title}</div>
                     <div className="topbar-user">
+                        <BrowserNotifications userId={user?.id || 'admin'} />
+                        <button className="social-panel-trigger" type="button" aria-expanded={socialPanelOpen} aria-controls="social-panel" onClick={() => setSocialPanelOpen((open) => !open)}>
+                            <span aria-hidden="true">↗</span><span>Social apps</span>
+                        </button>
                         <span className="admin-pill"><span />Admin access</span>
                         <div className="topbar-profile" ref={profileRef}>
                             <button className="profile-trigger" type="button" aria-label={`Profile menu for ${user?.name || 'administrator'}`} aria-expanded={profileOpen} aria-controls="profile-menu" onClick={() => setProfileOpen((open) => !open)}>
@@ -101,6 +111,21 @@ export default function DashboardLayout({ title, activePage, children }) {
                     <footer className="dashboard-footer">Jephthah Helpdesk <span>·</span> Administration</footer>
                 </div>
             </main>
+            <div className={`social-panel-backdrop${socialPanelOpen ? ' is-open' : ''}`} aria-hidden={!socialPanelOpen} onClick={() => setSocialPanelOpen(false)} />
+            <aside className={`social-panel${socialPanelOpen ? ' is-open' : ''}`} id="social-panel" aria-label="Social apps" aria-hidden={!socialPanelOpen} inert={!socialPanelOpen}>
+                <div className="social-panel-heading">
+                    <div><span className="step-label">QUICK ACCESS</span><h2>Social apps</h2></div>
+                    <button className="social-panel-close" type="button" aria-label="Close social apps panel" onClick={() => setSocialPanelOpen(false)}>×</button>
+                </div>
+                <p className="social-panel-note">Sign in directly with Meta. For your security, Facebook and Messenger open on their official websites rather than inside this helpdesk.</p>
+                <a className="social-app-link messenger" href="https://www.messenger.com/" target="_blank" rel="noopener noreferrer">
+                    <span className="social-app-mark" aria-hidden="true">M</span><span><strong>Messenger</strong><small>Open messenger.com</small></span><span className="social-app-arrow" aria-hidden="true">↗</span>
+                </a>
+                <a className="social-app-link facebook" href="https://www.facebook.com/" target="_blank" rel="noopener noreferrer">
+                    <span className="social-app-mark" aria-hidden="true">f</span><span><strong>Facebook</strong><small>Open facebook.com</small></span><span className="social-app-arrow" aria-hidden="true">↗</span>
+                </a>
+                <p className="social-panel-footer">Your login details are entered only on the official Meta site.</p>
+            </aside>
         </div>
     );
 }

@@ -65,6 +65,80 @@ class DatabaseController extends Controller
         }
     }
 
+    public function query(Request $request)
+    {
+        $validated = $request->validate([
+            'sql' => ['required', 'string', 'max:65535'],
+            'confirm_changes' => ['sometimes', 'boolean'],
+        ]);
+
+        try {
+            $statements = $this->splitStatements($validated['sql']);
+            if (count($statements) !== 1) {
+                return response()->json(['error' => 'Run one SQL statement at a time.'], 422);
+            }
+
+            $statement = $statements[0];
+            if (!$this->isAllowedWorkbenchStatement($statement)) {
+                return response()->json(['error' => 'This SQL command is not supported in the workbench.'], 422);
+            }
+
+            $command = strtoupper(strtok(ltrim($statement), " \t\r\n"));
+            $readOnlyCommands = ['SELECT', 'SHOW', 'DESCRIBE', 'DESC', 'EXPLAIN'];
+            if (!in_array($command, $readOnlyCommands, true) && !($validated['confirm_changes'] ?? false)) {
+                return response()->json(['error' => 'Confirm the query before running a statement that can change data or schema.'], 422);
+            }
+            if (preg_match('/\bINTO\s+(?:OUTFILE|DUMPFILE)\b|\bLOAD_FILE\s*\(/i', $statement)) {
+                return response()->json(['error' => 'File access statements are not supported in the workbench.'], 422);
+            }
+
+            $startedAt = microtime(true);
+            $result = DB::connection()->getPdo()->query($statement);
+            $columns = [];
+            $rows = [];
+            $truncated = false;
+            if ($result->columnCount() > 0) {
+                $columnCount = min($result->columnCount(), 50);
+                for ($index = 0; $index < $columnCount; $index++) {
+                    $metadata = $result->getColumnMeta($index);
+                    $columns[] = is_array($metadata) ? ($metadata['name'] ?? 'Column '.($index + 1)) : 'Column '.($index + 1);
+                }
+                while (($row = $result->fetch(PDO::FETCH_NUM)) !== false) {
+                    if (count($rows) >= 200) {
+                        $truncated = true;
+                        break;
+                    }
+                    $boundedRow = [];
+                    foreach (array_slice($row, 0, $columnCount) as $value) {
+                        if (is_string($value) && preg_match('//u', $value) !== 1) {
+                            $value = '[binary data: '.strlen($value).' bytes]';
+                        } elseif (is_string($value) && strlen($value) > 4096) {
+                            $value = (function_exists('mb_substr') ? mb_substr($value, 0, 4096) : substr($value, 0, 4096)).'… [truncated]';
+                        }
+                        $boundedRow[] = $value;
+                    }
+                    $rows[] = $boundedRow;
+                }
+                if ($result->columnCount() > $columnCount) {
+                    $truncated = true;
+                }
+            }
+
+            return response()->json([
+                'columns' => $columns,
+                'rows' => $rows,
+                'rowCount' => count($rows),
+                'affectedRows' => $result->columnCount() === 0 ? $result->rowCount() : null,
+                'truncated' => $truncated,
+                'durationMs' => (int) round((microtime(true) - $startedAt) * 1000),
+            ]);
+        } catch (\Throwable $exception) {
+            Log::warning('Database workbench query failed.', ['exception' => $exception]);
+
+            return response()->json(['error' => $exception->getMessage()], 422);
+        }
+    }
+
     public function table(Request $request): Response
     {
         $table = (string) $request->query('table', '');
@@ -519,5 +593,13 @@ class DatabaseController extends Controller
         if (is_string($withoutStrings) && preg_match('/(?<![A-Za-z0-9_$])(?:`[^`]+`|[A-Za-z_][A-Za-z0-9_$]*)\s*\.\s*(?:`[^`]+`|[A-Za-z_][A-Za-z0-9_$]*)/', $withoutStrings)) {
             throw new RuntimeException('Database-qualified table names are not allowed.');
         }
+    }
+
+    private function isAllowedWorkbenchStatement(string $statement): bool
+    {
+        return (bool) preg_match(
+            '/^(?:SELECT|SHOW|DESCRIBE|DESC|EXPLAIN|WITH)\b|^(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|REPLACE\s+INTO)\b|^(?:CREATE\s+(?:(?:TEMPORARY\s+)?TABLE|(?:UNIQUE\s+)?INDEX|VIEW)|ALTER\s+TABLE|DROP\s+(?:TEMPORARY\s+)?TABLE|DROP\s+(?:INDEX|VIEW)|TRUNCATE\s+(?:TABLE\s+)?|RENAME\s+TABLE|(?:OPTIMIZE|ANALYZE|CHECK|REPAIR)\s+TABLE)\b/i',
+            $statement
+        );
     }
 }

@@ -1,17 +1,56 @@
 import React, { useRef, useState } from 'react';
 import { router, useForm } from '@inertiajs/react';
 import DashboardLayout from '../../Components/DashboardLayout';
+import ActionIcon from '../../Components/ActionIcon';
 import FilePicker from '../../Components/FilePicker';
 import { appUrl } from '../../url';
 
 export default function Notices({ notices = [] }) {
     const fileInput = useRef(null);
+    const editFileInput = useRef(null);
     const [showForm, setShowForm] = useState(false);
+    const [editingNoticeId, setEditingNoticeId] = useState(null);
     const form = useForm({ title: '', body: '', attachment: null });
+    const editForm = useForm({ title: '', body: '', attachment: null, remove_attachment: false });
+
     const submit = (event) => {
         event.preventDefault();
-        form.post(appUrl('/admin/notices'), { onSuccess: () => { form.reset(); setShowForm(false); if (fileInput.current) fileInput.current.value = ''; } });
+        form.post(appUrl('/admin/notices'), {
+            onSuccess: () => {
+                form.reset();
+                setShowForm(false);
+                if (fileInput.current) fileInput.current.value = '';
+            },
+        });
     };
+
+    const startEdit = (notice) => {
+        setEditingNoticeId(notice.id);
+        editForm.setData({
+            title: notice.title,
+            body: notice.body,
+            attachment: null,
+            remove_attachment: false,
+        });
+    };
+
+    const submitEdit = (event) => {
+        event.preventDefault();
+        editForm.post(appUrl(`/admin/notices/${editingNoticeId}`), {
+            onSuccess: () => {
+                setEditingNoticeId(null);
+                editForm.reset();
+                if (editFileInput.current) editFileInput.current.value = '';
+            },
+        });
+    };
+
+    const cancelEdit = () => {
+        setEditingNoticeId(null);
+        editForm.reset();
+        if (editFileInput.current) editFileInput.current.value = '';
+    };
+
     const removeNotice = (notice) => {
         if (window.confirm(`Remove "${notice.title}" from the public helpdesk page?`)) {
             router.post(appUrl('/admin/notices/delete'), { notice_id: notice.id });
@@ -41,7 +80,32 @@ export default function Notices({ notices = [] }) {
             <section className="admin-card notice-list-card">
                 <div className="admin-card-heading accounts-heading"><div><span className="step-label">NOTICE BOARD</span><h2>Posted notices</h2><p>Most recent notices appear first on the public helpdesk page.</p></div><span className="account-count">{notices.length} shown</span></div>
                 {notices.length === 0 ? <div className="empty-state"><span>▧</span><strong>No notices posted</strong><small>Use the form above to share the first public notice.</small></div> :
-                    <div className="notice-list">{notices.map((notice) => <article className="notice-item" key={notice.id}><div className="notice-item-heading"><h3>{notice.title}</h3><time dateTime={notice.created_at}>{new Date(notice.created_at).toLocaleString()}</time></div><p>{notice.body}</p>{notice.attachment_url && <a className="notice-attachment-link" href={notice.attachment_url} target="_blank" rel="noreferrer"><img className="notice-attachment-preview" src={notice.attachment_url} alt={`Attached memo for ${notice.title}`} /><span>Open scanned memo</span></a>}<div className="admin-notice-footer"><small>Posted by {notice.author || 'Administrator'}</small><button className="cancel-action" type="button" onClick={() => removeNotice(notice)}>Remove</button></div></article>)}</div>}
+                    <div className="notice-list">{notices.map((notice) => <article className="notice-item" key={notice.id}>
+                        <div className="notice-item-heading">
+                            <h3>{notice.title}</h3>
+                            <time dateTime={notice.created_at}>{new Date(notice.created_at).toLocaleString()}</time>
+                        </div>
+                        <p>{notice.body}</p>
+                        {notice.attachment_url && <a className="notice-attachment-link" href={notice.attachment_url} target="_blank" rel="noreferrer"><img className="notice-attachment-preview" src={notice.attachment_url} alt={`Attached memo for ${notice.title}`} /><span>Open scanned memo</span></a>}
+                        <div className="admin-notice-footer">
+                            <small>Posted by {notice.author || 'Administrator'}</small>
+                            <div className="notice-item-actions">
+                                <button className="secondary-action action-icon-button" type="button" aria-label="Edit notice" title="Edit notice" onClick={() => startEdit(notice)}><ActionIcon type="edit" /></button>
+                                <button className="secondary-action action-icon-button danger-action" type="button" aria-label="Remove notice" title="Remove notice" onClick={() => removeNotice(notice)}><ActionIcon type="remove" /></button>
+                            </div>
+                        </div>
+                        {editingNoticeId === notice.id && <form className="notice-item-edit-form" onSubmit={submitEdit}>
+                            <label>Title<input value={editForm.data.title} onChange={(event) => editForm.setData('title', event.target.value)} maxLength="180" required /></label>
+                            <label>Message<textarea value={editForm.data.body} onChange={(event) => editForm.setData('body', event.target.value)} rows="5" maxLength="10000" required /></label>
+                            <label htmlFor={`notice-edit-attachment-${notice.id}`}>Scanned memo image
+                                <FilePicker id={`notice-edit-attachment-${notice.id}`} inputRef={editFileInput} accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" selectedFile={editForm.data.attachment} emptyText={notice.attachment_url ? 'Replace current image' : 'No image attached'} onChange={(event) => editForm.setData('attachment', event.target.files[0] || null)} />
+                                <small>Optional. Upload a new image to replace the current memo. Leave it blank to keep the existing file.</small>
+                                {editForm.errors.attachment && <small className="field-error">{editForm.errors.attachment}</small>}
+                            </label>
+                            {notice.attachment_url && <label className="inline-checkbox"><input type="checkbox" checked={editForm.data.remove_attachment} onChange={(event) => editForm.setData('remove_attachment', event.target.checked)} /> Remove current attachment</label>}
+                            <div className="form-actions"><button className="sign-in-button" type="submit" disabled={editForm.processing}>{editForm.processing ? 'Saving…' : 'Save changes'}</button><button className="cancel-action" type="button" onClick={cancelEdit}>Cancel</button></div>
+                        </form>}
+                    </article>)}</div>}
             </section>
         </DashboardLayout>
     );

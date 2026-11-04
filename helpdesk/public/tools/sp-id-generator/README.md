@@ -1,7 +1,9 @@
-# SP ID Generator
+# SP ID Generator assets
 
-Existing employee ID generator preserved as a separate Laragon project.
+The generator is part of the Laravel administrator application. Open it from the
+admin navigation or at `/admin/tools/id-generator`.
 
-Open it at `http://localhost/helpdesk/public/tools/sp-id-generator/`.
-
-The project keeps its original relative folder layout (`css/`, `img/`, `js/`, and `cards/`) so its existing PHP and asset paths remain together.
+The legacy URL at `/tools/sp-id-generator/` redirects to the admin page. The
+templates and fonts in `img/` are runtime assets used by
+`app/Services/IdCardGenerator.php`; card generation and delivery are handled by
+the Laravel application.

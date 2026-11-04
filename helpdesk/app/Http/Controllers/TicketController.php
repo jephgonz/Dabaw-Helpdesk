@@ -97,6 +97,37 @@ class TicketController extends Controller
         return back()->with('success', 'Support request status updated.');
     }
 
+    public function update(Request $request, int $ticket): RedirectResponse
+    {
+        $validated = $request->validate([
+            'requester_name' => ['required', 'string', 'max:120'],
+            'requester_email' => ['required', 'email', 'max:190'],
+            'subject' => ['required', 'string', 'max:160'],
+            'description' => ['required', 'string', 'max:10000'],
+        ]);
+
+        try {
+            $updated = DB::table('helpdesk_tickets')->where('id', $ticket)->update([
+                'requester_name' => trim($validated['requester_name']),
+                'requester_email' => strtolower(trim($validated['requester_email'])),
+                'subject' => trim($validated['subject']),
+                'description' => trim($validated['description']),
+                'updated_at' => now(),
+            ]);
+            if (!$updated) {
+                $exists = DB::table('helpdesk_tickets')->where('id', $ticket)->exists();
+                if (!$exists) {
+                    return back()->withErrors(['form' => 'The support request was not found.']);
+                }
+            }
+        } catch (\Throwable $exception) {
+            Log::error('Support request update failed.', ['ticket_id' => $ticket, 'exception' => $exception]);
+            return back()->withErrors(['form' => 'The support request could not be updated.']);
+        }
+
+        return back()->with('success', 'Support request updated.');
+    }
+
     public function metrics(Request $request)
     {
         $period = $request->query('period', 'month');

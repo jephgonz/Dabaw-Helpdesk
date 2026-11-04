@@ -168,6 +168,60 @@ class ExampleTest extends TestCase
         $this->get('/admin')->assertRedirect('/admin/login');
     }
 
+    public function test_admin_overview_shows_only_the_current_admin_open_tasks(): void
+    {
+        Schema::create('helpdesk_users', function ($table): void {
+            $table->id();
+            $table->string('display_name');
+            $table->string('username')->nullable();
+            $table->string('email');
+            $table->string('role');
+            $table->boolean('is_active');
+            $table->timestamp('created_at')->nullable();
+        });
+        DB::table('helpdesk_users')->insert([
+            ['id' => 1, 'display_name' => 'Admin One', 'username' => null, 'email' => 'admin@example.com', 'role' => 'admin', 'is_active' => 1, 'created_at' => now()],
+            ['id' => 2, 'display_name' => 'Admin Two', 'username' => null, 'email' => 'other@example.com', 'role' => 'admin', 'is_active' => 1, 'created_at' => now()],
+        ]);
+        Schema::create('helpdesk_tickets', function ($table): void {
+            $table->id();
+            $table->string('status');
+            $table->timestamp('resolved_at')->nullable();
+        });
+        Schema::create('helpdesk_accomplishments', function ($table): void {
+            $table->id();
+            $table->unsignedBigInteger('created_by');
+            $table->string('title', 200);
+            $table->text('description')->nullable();
+            $table->date('due_date')->nullable();
+            $table->string('status', 20)->default('todo');
+            $table->timestamp('completed_at')->nullable();
+            $table->timestamps();
+        });
+        DB::table('helpdesk_accomplishments')->insert([
+            ['created_by' => 1, 'title' => 'Prepare report', 'description' => null, 'due_date' => '2026-11-10', 'status' => 'todo', 'completed_at' => null, 'created_at' => now(), 'updated_at' => now()],
+            ['created_by' => 1, 'title' => 'Review requests', 'description' => null, 'due_date' => '2026-11-05', 'status' => 'todo', 'completed_at' => null, 'created_at' => now(), 'updated_at' => now()],
+            ['created_by' => 1, 'title' => 'Finished work', 'description' => null, 'due_date' => null, 'status' => 'completed', 'completed_at' => now(), 'created_at' => now(), 'updated_at' => now()],
+            ['created_by' => 2, 'title' => 'Another admin task', 'description' => null, 'due_date' => null, 'status' => 'todo', 'completed_at' => null, 'created_at' => now(), 'updated_at' => now()],
+        ]);
+
+        $this->withSession(['user' => ['id' => 1, 'name' => 'Admin One', 'role' => 'admin']])
+            ->get('/admin')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Admin/Dashboard')
+                ->where('openTaskCount', 2)
+                ->where('pendingTaskCount', 2)
+                ->where('completedThisQuarterCount', 1)
+                ->has('pendingTasks', 2)
+                ->where('pendingTasks.0.title', 'Review requests')
+                ->where('pendingTasks.1.title', 'Prepare report'));
+
+        Schema::drop('helpdesk_accomplishments');
+        Schema::drop('helpdesk_tickets');
+        Schema::drop('helpdesk_users');
+    }
+
     public function test_admin_notices_require_an_admin_session(): void
     {
         $this->get('/admin/notices')->assertRedirect('/admin/login');
@@ -621,6 +675,300 @@ class ExampleTest extends TestCase
         $migration->up();
 
         $this->assertFalse(Schema::hasTable('helpdesk_tasks'));
+    }
+
+    public function test_accomplishment_migration_creates_its_board_table(): void
+    {
+        $migration = require database_path('migrations/2026_11_03_000000_create_helpdesk_accomplishments_table.php');
+        $migration->up();
+
+        $this->assertTrue(Schema::hasTable('helpdesk_accomplishments'));
+        $this->assertTrue(Schema::hasColumns('helpdesk_accomplishments', [
+            'created_by',
+            'title',
+            'description',
+            'due_date',
+            'status',
+            'completed_at',
+            'created_at',
+            'updated_at',
+        ]));
+
+        $migration->down();
+        $this->assertFalse(Schema::hasTable('helpdesk_accomplishments'));
+    }
+
+    public function test_in_progress_accomplishments_migrate_to_todo(): void
+    {
+        Schema::create('helpdesk_accomplishments', function ($table): void {
+            $table->id();
+            $table->string('status');
+        });
+        DB::table('helpdesk_accomplishments')->insert([
+            ['id' => 1, 'status' => 'in_progress'],
+            ['id' => 2, 'status' => 'todo'],
+            ['id' => 3, 'status' => 'completed'],
+        ]);
+
+        $migration = require database_path('migrations/2026_11_03_000003_remove_in_progress_accomplishment_status.php');
+        $migration->up();
+
+        $this->assertDatabaseHas('helpdesk_accomplishments', ['id' => 1, 'status' => 'todo']);
+        $this->assertDatabaseHas('helpdesk_accomplishments', ['id' => 2, 'status' => 'todo']);
+        $this->assertDatabaseHas('helpdesk_accomplishments', ['id' => 3, 'status' => 'completed']);
+
+        Schema::drop('helpdesk_accomplishments');
+    }
+
+    public function test_browser_notification_settings_are_saved_per_administrator(): void
+    {
+        $this->createNotificationTables();
+        $adminOne = ['user' => ['id' => 1, 'name' => 'Admin One', 'role' => 'admin']];
+        $adminTwo = ['user' => ['id' => 2, 'name' => 'Admin Two', 'role' => 'admin']];
+
+        $this->withSession($adminOne)->getJson('/admin/notifications/settings')
+            ->assertOk()
+            ->assertExactJson([
+                'enabled' => false,
+                'task_due' => true,
+                'new_support_requests' => true,
+            ]);
+
+        $this->withSession($adminOne)->postJson('/admin/notifications/settings', [
+            'enabled' => true,
+            'task_due' => true,
+            'new_support_requests' => false,
+        ])->assertOk()->assertJsonPath('enabled', true)
+            ->assertJsonPath('new_support_requests', false);
+
+        $this->withSession($adminTwo)->getJson('/admin/notifications/settings')
+            ->assertOk()
+            ->assertJsonPath('enabled', false)
+            ->assertJsonPath('new_support_requests', true);
+        $this->withSession($adminOne)->postJson('/admin/notifications/settings', [
+            'enabled' => 'sometimes',
+            'task_due' => true,
+            'new_support_requests' => true,
+        ])->assertUnprocessable()->assertJsonValidationErrors('enabled');
+
+        Schema::drop('helpdesk_notification_settings');
+        Schema::drop('helpdesk_users');
+    }
+
+    public function test_browser_notification_settings_migration_creates_and_drops_preferences_table(): void
+    {
+        $migration = require database_path('migrations/2026_11_03_000001_create_helpdesk_notification_settings_table.php');
+        $migration->up();
+
+        $this->assertTrue(Schema::hasTable('helpdesk_notification_settings'));
+        $this->assertTrue(Schema::hasColumns('helpdesk_notification_settings', [
+            'admin_id',
+            'enabled',
+            'task_due',
+            'new_support_requests',
+            'ticket_status_changes',
+            'created_at',
+            'updated_at',
+        ]));
+
+        $migration->down();
+        $this->assertFalse(Schema::hasTable('helpdesk_notification_settings'));
+    }
+
+    public function test_ticket_status_notification_migration_removes_the_preference_column(): void
+    {
+        $createMigration = require database_path('migrations/2026_11_03_000001_create_helpdesk_notification_settings_table.php');
+        $createMigration->up();
+        $removeMigration = require database_path('migrations/2026_11_03_000002_remove_ticket_status_notification_preference.php');
+        $removeMigration->up();
+
+        $this->assertFalse(Schema::hasColumn('helpdesk_notification_settings', 'ticket_status_changes'));
+
+        $removeMigration->down();
+        $this->assertTrue(Schema::hasColumn('helpdesk_notification_settings', 'ticket_status_changes'));
+        Schema::drop('helpdesk_notification_settings');
+    }
+
+    public function test_browser_notification_poll_returns_due_tasks_and_new_requests_only(): void
+    {
+        $this->createNotificationTables();
+        Schema::create('helpdesk_accomplishments', function ($table): void {
+            $table->id();
+            $table->unsignedBigInteger('created_by');
+            $table->string('title', 200);
+            $table->text('description')->nullable();
+            $table->date('due_date')->nullable();
+            $table->string('status', 20);
+            $table->timestamp('completed_at')->nullable();
+            $table->timestamps();
+        });
+        Schema::create('helpdesk_tickets', function ($table): void {
+            $table->id();
+            $table->string('subject');
+            $table->string('status');
+            $table->timestamp('created_at');
+            $table->timestamp('updated_at');
+        });
+        DB::table('helpdesk_notification_settings')->insert([
+            'admin_id' => 1,
+            'enabled' => 1,
+            'task_due' => 1,
+            'new_support_requests' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('helpdesk_accomplishments')->insert([
+            ['created_by' => 1, 'title' => 'Submit report', 'description' => null, 'due_date' => now()->toDateString(), 'status' => 'todo', 'completed_at' => null, 'created_at' => now(), 'updated_at' => now()],
+            ['created_by' => 2, 'title' => 'Another admin task', 'description' => null, 'due_date' => now()->toDateString(), 'status' => 'todo', 'completed_at' => null, 'created_at' => now(), 'updated_at' => now()],
+        ]);
+        DB::table('helpdesk_tickets')->insert([
+            ['id' => 1, 'subject' => 'New printer issue', 'status' => 'new', 'created_at' => now(), 'updated_at' => now()],
+            ['id' => 2, 'subject' => 'Network request', 'status' => 'in_progress', 'created_at' => now()->subHour(), 'updated_at' => now()],
+            ['id' => 3, 'subject' => 'Old request', 'status' => 'new', 'created_at' => now()->subHours(2), 'updated_at' => now()->subHours(2)],
+        ]);
+        $after = now()->subMinute()->toIso8601String();
+
+        $response = $this->withSession(['user' => ['id' => 1, 'name' => 'Admin One', 'role' => 'admin']])
+            ->getJson('/admin/notifications?after='.urlencode($after))
+            ->assertOk()
+            ->assertJsonPath('settings.enabled', true)
+            ->assertJsonCount(2, 'events');
+
+        $events = collect($response->json('events'));
+        $this->assertTrue($events->contains(fn (array $event): bool => $event['title'] === 'Task due today' && $event['body'] === 'Submit report'));
+        $this->assertTrue($events->contains(fn (array $event): bool => $event['title'] === 'New support request' && $event['body'] === 'New printer issue'));
+        $this->assertFalse($events->contains(fn (array $event): bool => str_contains($event['title'], 'updated')));
+
+        Schema::drop('helpdesk_tickets');
+        Schema::drop('helpdesk_accomplishments');
+        Schema::drop('helpdesk_notification_settings');
+        Schema::drop('helpdesk_users');
+    }
+
+    private function createNotificationTables(): void
+    {
+        Schema::create('helpdesk_users', function ($table): void {
+            $table->id();
+            $table->string('role');
+            $table->boolean('is_active');
+        });
+        DB::table('helpdesk_users')->insert([
+            ['id' => 1, 'role' => 'admin', 'is_active' => 1],
+            ['id' => 2, 'role' => 'admin', 'is_active' => 1],
+        ]);
+        Schema::create('helpdesk_notification_settings', function ($table): void {
+            $table->unsignedBigInteger('admin_id')->primary();
+            $table->boolean('enabled')->default(false);
+            $table->boolean('task_due')->default(true);
+            $table->boolean('new_support_requests')->default(true);
+            $table->timestamps();
+        });
+    }
+
+    public function test_accomplishment_board_tracks_admin_tasks_and_exports_quarterly_report(): void
+    {
+        $this->createAccomplishmentTables();
+        DB::table('helpdesk_accomplishments')->insert([
+            ['created_by' => 1, 'title' => 'Quarterly service update', 'description' => 'Published helpdesk updates.', 'due_date' => '2026-11-30', 'status' => 'completed', 'completed_at' => '2026-11-02 10:00:00', 'created_at' => '2026-10-25 10:00:00', 'updated_at' => '2026-11-02 10:00:00'],
+            ['created_by' => 1, 'title' => '=SUM(1,1)', 'description' => null, 'due_date' => null, 'status' => 'completed', 'completed_at' => '2026-08-02 10:00:00', 'created_at' => '2026-08-01 10:00:00', 'updated_at' => '2026-08-02 10:00:00'],
+            ['created_by' => 2, 'title' => 'Private accomplishment', 'description' => null, 'due_date' => null, 'status' => 'completed', 'completed_at' => '2026-11-02 10:00:00', 'created_at' => '2026-10-25 10:00:00', 'updated_at' => '2026-11-02 10:00:00'],
+        ]);
+        $session = ['user' => ['id' => 1, 'name' => 'Admin', 'role' => 'admin']];
+
+        $this->withSession($session)->get('/admin/accomplishments')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Admin/Accomplishments')
+                ->where('activePage', 'accomplishments')
+                ->has('accomplishments', 2)
+                ->where('accomplishments.0.title', 'Quarterly service update'));
+
+        $response = $this->withSession($session)->get('/admin/accomplishments/report?year=2026&quarter=4');
+        $response->assertOk()->assertDownload('accomplishments-Q4-2026.csv');
+        $csv = $response->streamedContent();
+        $this->assertStringContainsString('Quarterly service update', $csv);
+        $this->assertStringNotContainsString('Private accomplishment', $csv);
+        $this->assertStringNotContainsString('=SUM(1,1)', $csv);
+        $this->assertStringContainsString("'=SUM(1,1)", $this->withSession($session)->get('/admin/accomplishments/report?year=2026&quarter=3')->streamedContent());
+
+        Schema::drop('helpdesk_accomplishments');
+    }
+
+    public function test_accomplishment_board_creates_updates_and_deletes_owned_tasks(): void
+    {
+        $this->createAccomplishmentTables();
+        $session = ['user' => ['id' => 1, 'name' => 'Admin', 'role' => 'admin']];
+
+        $this->withSession($session)->post('/admin/accomplishments', [
+            'title' => 'Prepare quarterly report',
+            'description' => 'Collect completed work.',
+            'due_date' => '2026-12-31',
+            'status' => 'todo',
+        ])->assertRedirect();
+        $taskId = DB::table('helpdesk_accomplishments')->value('id');
+        $this->assertDatabaseHas('helpdesk_accomplishments', ['id' => $taskId, 'created_by' => 1, 'status' => 'todo']);
+
+        $this->withSession($session)->post("/admin/accomplishments/{$taskId}", [
+            'title' => 'Prepare quarterly report',
+            'description' => 'Collect completed work.',
+            'due_date' => '2026-12-31',
+            'status' => 'in_progress',
+        ])->assertSessionHasErrors('status');
+        $this->assertDatabaseHas('helpdesk_accomplishments', ['id' => $taskId, 'status' => 'todo']);
+
+        $this->withSession(['user' => ['id' => 2, 'name' => 'Other Admin', 'role' => 'admin']])
+            ->post("/admin/accomplishments/{$taskId}/complete")
+            ->assertSessionHasErrors('form');
+        $this->assertDatabaseHas('helpdesk_accomplishments', ['id' => $taskId, 'status' => 'todo']);
+
+        $this->withSession($session)->post("/admin/accomplishments/{$taskId}/complete")
+            ->assertRedirect()
+            ->assertSessionHas('success', 'Accomplishment marked complete.');
+        $this->assertDatabaseHas('helpdesk_accomplishments', ['id' => $taskId, 'status' => 'completed']);
+        $this->assertNotNull(DB::table('helpdesk_accomplishments')->where('id', $taskId)->value('completed_at'));
+
+        $this->withSession($session)->post("/admin/accomplishments/{$taskId}", [
+            'title' => 'Prepare quarterly report',
+            'description' => 'Report is ready.',
+            'due_date' => '2026-12-31',
+            'status' => 'completed',
+        ])->assertRedirect();
+        $this->assertDatabaseHas('helpdesk_accomplishments', ['id' => $taskId, 'status' => 'completed']);
+        $this->assertNotNull(DB::table('helpdesk_accomplishments')->where('id', $taskId)->value('completed_at'));
+
+        $this->withSession(['user' => ['id' => 2, 'name' => 'Other Admin', 'role' => 'admin']])
+            ->post("/admin/accomplishments/{$taskId}/delete")
+            ->assertSessionHasErrors('form');
+        $this->assertDatabaseHas('helpdesk_accomplishments', ['id' => $taskId]);
+
+        $this->withSession($session)->post("/admin/accomplishments/{$taskId}/delete")
+            ->assertRedirect();
+        $this->assertDatabaseMissing('helpdesk_accomplishments', ['id' => $taskId]);
+
+        Schema::drop('helpdesk_accomplishments');
+    }
+
+    private function createAccomplishmentTables(): void
+    {
+        Schema::create('helpdesk_users', function ($table): void {
+            $table->id();
+            $table->string('role');
+            $table->boolean('is_active');
+        });
+        DB::table('helpdesk_users')->insert([
+            ['id' => 1, 'role' => 'admin', 'is_active' => 1],
+            ['id' => 2, 'role' => 'admin', 'is_active' => 1],
+        ]);
+        Schema::create('helpdesk_accomplishments', function ($table): void {
+            $table->id();
+            $table->unsignedBigInteger('created_by');
+            $table->string('title', 200);
+            $table->text('description')->nullable();
+            $table->date('due_date')->nullable();
+            $table->string('status', 20)->default('todo');
+            $table->timestamp('completed_at')->nullable();
+            $table->timestamps();
+        });
     }
 
     public function test_staff_cannot_update_profile_but_admin_can_and_email_can_be_shared(): void

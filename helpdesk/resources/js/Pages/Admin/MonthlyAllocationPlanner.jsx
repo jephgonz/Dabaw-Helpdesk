@@ -126,62 +126,70 @@ export default function MonthlyAllocationPlanner({
                     <div>
                         <span className="step-label">MONTHLY CSV</span>
                         <h2>Select a month</h2>
-                        <p>The CSV matches your example columns: number, datetime, value, refnumber, and ads. It includes weekdays only, uses times from 8:00–11:59 AM, and applies your month-end allocation rule: extra below PHP 500 goes to the last day; PHP 500 or more is split across the final two days.</p>
+                        <p className="allocation-description">The CSV matches your example columns: number, datetime, value, refnumber, and ads. It includes weekdays only, uses times from 8:00–11:59 AM, and applies your month-end allocation rule: extra below PHP 500 goes to the last day; PHP 500 or more is split across the final two days.</p>
                     </div>
                 </div>
 
                 <div className="allocation-controls">
-                    <label htmlFor="allocation-month">Month</label>
-                    <input
-                        id="allocation-month"
-                        type="month"
-                        value={month}
-                        onChange={(event) => {
-                            if (!event.target.value) return;
-                            setMonth(event.target.value);
-                            setDownloaded(false);
-                        }}
-                    />
-                    <label htmlFor="allocation-target">Monthly target (PHP)</label>
-                    <input
-                        id="allocation-target"
-                        type="number"
-                        min="1"
-                        max={Number.MAX_SAFE_INTEGER}
-                        step="1"
-                        value={target}
-                        onChange={(event) => {
-                            setTarget(event.target.value);
-                            setDownloaded(false);
-                        }}
-                    />
-                    <label htmlFor="allocation-base-amount">Base weekday amount (PHP)</label>
-                    <input
-                        id="allocation-base-amount"
-                        type="number"
-                        min="1"
-                        max={Number.MAX_SAFE_INTEGER}
-                        step="1"
-                        value={baseWeekdayAmount}
-                        onChange={(event) => {
-                            setBaseWeekdayAmount(event.target.value);
-                            setDownloaded(false);
-                        }}
-                    />
-                    <button className="sign-in-button" type="button" onClick={downloadPlan} disabled={processing || !validAmounts}>
-                        {processing ? 'Preparing CSV…' : 'Download CSV'}
-                    </button>
-                    <button
-                        className="secondary-action"
-                        type="button"
-                        onClick={() => {
-                            setPreviewRandomization((value) => value + 1);
-                            setDownloaded(false);
-                        }}
-                        disabled={processing || adPaths.length === 0}
-                    >
-                        Rerandomize preview
-                    </button>
+                    <label className="allocation-field" htmlFor="allocation-month">
+                        Month
+                        <input
+                            id="allocation-month"
+                            type="month"
+                            value={month}
+                            onChange={(event) => {
+                                if (!event.target.value) return;
+                                setMonth(event.target.value);
+                                setDownloaded(false);
+                            }}
+                        />
+                    </label>
+                    <label className="allocation-field" htmlFor="allocation-target">
+                        Monthly target (PHP)
+                        <input
+                            id="allocation-target"
+                            type="number"
+                            min="1"
+                            max={Number.MAX_SAFE_INTEGER}
+                            step="1"
+                            value={target}
+                            onChange={(event) => {
+                                setTarget(event.target.value);
+                                setDownloaded(false);
+                            }}
+                        />
+                    </label>
+                    <label className="allocation-field" htmlFor="allocation-base-amount">
+                        Base weekday amount (PHP)
+                        <input
+                            id="allocation-base-amount"
+                            type="number"
+                            min="1"
+                            max={Number.MAX_SAFE_INTEGER}
+                            step="1"
+                            value={baseWeekdayAmount}
+                            onChange={(event) => {
+                                setBaseWeekdayAmount(event.target.value);
+                                setDownloaded(false);
+                            }}
+                        />
+                    </label>
+                    <div className="allocation-actions">
+                        <button className="sign-in-button" type="button" onClick={downloadPlan} disabled={processing || !validAmounts}>
+                            {processing ? 'Preparing CSV…' : 'Download CSV'}
+                        </button>
+                        <button
+                            className="secondary-action"
+                            type="button"
+                            onClick={() => {
+                                setPreviewRandomization((value) => value + 1);
+                                setDownloaded(false);
+                            }}
+                            disabled={processing || adPaths.length === 0}
+                        >
+                            Rerandomize preview
+                        </button>
+                    </div>
                 </div>
                 {!validAmounts && <p className="dashboard-notice error" role="alert">Enter positive whole-peso values for the monthly target and base weekday amount.</p>}
 

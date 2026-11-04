@@ -95,6 +95,69 @@ class NoticeController extends Controller
         ]);
     }
 
+    public function update(Request $request, int $notice): RedirectResponse
+    {
+        $validated = $request->validate([
+            'title' => ['required', 'string', 'max:180'],
+            'body' => ['required', 'string', 'max:10000'],
+            'attachment' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
+            'remove_attachment' => ['sometimes', 'boolean'],
+        ]);
+
+        $uploadedAttachmentPath = null;
+        $replacedAttachmentPath = null;
+
+        try {
+            $existingNotice = DB::table('helpdesk_notices')->where('id', $notice)->first(['attachment_path']);
+            if (! $existingNotice) {
+                return back()->withErrors(['form' => 'The notice was not found.']);
+            }
+
+            $newAttachmentPath = $existingNotice->attachment_path;
+
+            if ($request->hasFile('attachment')) {
+                $uploadedAttachmentPath = $request->file('attachment')->store('notice-attachments', 'local');
+                if (! is_string($uploadedAttachmentPath)) {
+                    throw new RuntimeException('The memo image could not be updated.');
+                }
+                $replacedAttachmentPath = $existingNotice->attachment_path;
+                $newAttachmentPath = $uploadedAttachmentPath;
+                if ($replacedAttachmentPath) {
+                    Storage::disk('local')->delete($replacedAttachmentPath);
+                }
+            } elseif (($validated['remove_attachment'] ?? false) === true) {
+                if ($existingNotice->attachment_path) {
+                    Storage::disk('local')->delete($existingNotice->attachment_path);
+                }
+                $newAttachmentPath = null;
+            }
+
+            $updated = DB::table('helpdesk_notices')->where('id', $notice)->update([
+                'title' => trim($validated['title']),
+                'body' => trim($validated['body']),
+                'attachment_path' => $newAttachmentPath,
+                'updated_at' => now(),
+            ]);
+
+            if ($updated === 0) {
+                if ($uploadedAttachmentPath !== null) {
+                    Storage::disk('local')->delete($uploadedAttachmentPath);
+                }
+
+                return back()->withErrors(['form' => 'The notice was not found.']);
+            }
+        } catch (\Throwable $exception) {
+            if ($uploadedAttachmentPath !== null) {
+                Storage::disk('local')->delete($uploadedAttachmentPath);
+            }
+            Log::error('Admin notice could not be updated.', ['exception' => $exception, 'notice_id' => $notice]);
+
+            return back()->withErrors(['form' => 'The notice could not be updated.']);
+        }
+
+        return back()->with('success', 'Notice updated on the public helpdesk page.');
+    }
+
     public function destroy(Request $request): RedirectResponse
     {
         $validated = $request->validate(['notice_id' => ['required', 'integer', 'min:1']]);
