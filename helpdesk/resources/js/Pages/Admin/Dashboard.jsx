@@ -28,7 +28,7 @@ export default function Dashboard({ accountCounts = { total: 0, active: 0, admin
                                 <span className="overview-task-dot" aria-hidden="true" />
                                 <span className="overview-task-title">{task.title}</span>
                                 <span className="overview-task-status">To do</span>
-                                {task.due_date && <time dateTime={task.due_date}>Due {new Date(`${task.due_date.slice(0, 10)}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</time>}
+                                {task.due_date && <time dateTime={task.due_date}>Due {new Date(`${task.due_date.slice(0, 10)}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</time>}
                             </Link>
                         </li>)}</ul>}
                 </section>

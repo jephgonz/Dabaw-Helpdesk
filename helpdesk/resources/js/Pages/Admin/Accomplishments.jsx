@@ -39,8 +39,32 @@ function formatDate(value) {
     return new Date(year, month - 1, day).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+function formatDueDate(value) {
+    if (!value) return '';
+    const datePart = value.slice(0, 10);
+    const [year, month, day] = datePart.split('-').map(Number);
+    return new Date(year, month - 1, day).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function CompletionChart({ items, label }) {
+    const maxCount = Math.max(...items.map((item) => item.count), 1);
+    const chartDescription = items.map((item) => `${item.label}: ${item.count}`).join(', ');
+
+    return (
+        <div className="accomplishment-stat-chart" role="img" aria-label={`${label}. ${chartDescription}`}>
+            {items.map((item) => (
+                <div className="accomplishment-stat-chart-item" key={item.label} title={`${item.label}: ${item.count}`}>
+                    <small>{item.count}</small>
+                    <div className="accomplishment-stat-chart-track"><span style={{ height: `${Math.max((item.count / maxCount) * 100, 4)}%` }} /></div>
+                    <span>{item.label}</span>
+                </div>
+            ))}
+        </div>
+    );
+}
+
 export default function Accomplishments({ accomplishments = [] }) {
-    const currentDate = new Date();
+    const currentDate = useMemo(() => new Date(), []);
     const [statusFilter, setStatusFilter] = useState('all');
     const [reportYear, setReportYear] = useState(String(currentDate.getFullYear()));
     const [reportQuarter, setReportQuarter] = useState(String(Math.floor(currentDate.getMonth() / 3) + 1));
@@ -53,6 +77,55 @@ export default function Accomplishments({ accomplishments = [] }) {
     const quarterEnd = `${quarterEndDate.getFullYear()}-${String(quarterEndDate.getMonth() + 1).padStart(2, '0')}-01`;
     const completedThisQuarter = accomplishments.filter((task) => task.status === 'completed' && task.completed_at >= `${quarterStart}-01` && task.completed_at < quarterEnd).length;
     const canDownloadReport = /^\d{4}$/.test(reportYear) && Number(reportYear) >= 2000 && Number(reportYear) <= 2100;
+    const periodStats = useMemo(() => {
+        const startOfWeek = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
+        startOfWeek.setDate(startOfWeek.getDate() - ((startOfWeek.getDay() + 6) % 7));
+        const weekStartKey = `${startOfWeek.getFullYear()}-${String(startOfWeek.getMonth() + 1).padStart(2, '0')}-${String(startOfWeek.getDate()).padStart(2, '0')}`;
+        const weekEnd = new Date(startOfWeek);
+        weekEnd.setDate(weekEnd.getDate() + 7);
+        const weekEndKey = `${weekEnd.getFullYear()}-${String(weekEnd.getMonth() + 1).padStart(2, '0')}-${String(weekEnd.getDate()).padStart(2, '0')}`;
+        const monthEndDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+        const weekItems = Array.from({ length: 7 }, (_, index) => {
+            const date = new Date(startOfWeek);
+            date.setDate(date.getDate() + index);
+            return { label: date.toLocaleDateString(undefined, { weekday: 'short' }), count: 0 };
+        });
+        const monthItems = Array.from(
+            { length: Math.ceil(monthEndDay / 7) },
+            (_, index) => ({ label: `${index * 7 + 1}-${Math.min((index + 1) * 7, monthEndDay)}`, count: 0 }),
+        );
+        let weekCount = 0;
+        let monthCount = 0;
+
+        accomplishments.forEach((task) => {
+            if (task.status !== 'completed' || !task.completed_at) return;
+            const completionDate = task.completed_at.slice(0, 10);
+            if (completionDate >= weekStartKey && completionDate < weekEndKey) {
+                const [year, month, day] = completionDate.split('-').map(Number);
+                const dayIndex = (new Date(year, month - 1, day).getDay() + 6) % 7;
+                weekItems[dayIndex].count += 1;
+                weekCount += 1;
+            }
+            if (completionDate.slice(0, 7) === `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`) {
+                const dayOfMonth = Number(completionDate.slice(8, 10));
+                monthItems[Math.floor((dayOfMonth - 1) / 7)].count += 1;
+                monthCount += 1;
+            }
+        });
+
+        const weekEndDate = new Date(weekEnd);
+        weekEndDate.setDate(weekEndDate.getDate() - 1);
+        const weekEndKeyLabel = `${weekEndDate.getFullYear()}-${String(weekEndDate.getMonth() + 1).padStart(2, '0')}-${String(weekEndDate.getDate()).padStart(2, '0')}`;
+
+        return {
+            weekCount,
+            weekRange: `${formatDate(weekStartKey)} - ${formatDate(weekEndKeyLabel)}`,
+            weekItems,
+            monthCount,
+            monthLabel: currentDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
+            monthItems,
+        };
+    }, [accomplishments, currentDate]);
     const counts = useMemo(() => ({
         todo: accomplishments.filter((task) => task.status === 'todo').length,
         completed: accomplishments.filter((task) => task.status === 'completed').length,
@@ -79,6 +152,8 @@ export default function Accomplishments({ accomplishments = [] }) {
             <div className="dashboard-title-row accomplishment-page-heading"><div><p className="eyebrow">PERSONAL WORK TRACKER</p><h1>Accomplishment board</h1><p className="dashboard-subtitle">Track your work from planned to completed, then export a quarter-end report.</p></div><button className="secondary-action primary-action accomplishment-add-button" type="button" onClick={() => { setEditingTask(null); setShowForm((open) => !open); }}>{showForm ? 'Close form' : '+ Add task'}</button></div>
             <section className="accomplishment-stats" aria-label="Task summary">
                 <article className="accomplishment-stat"><span>To do</span><strong>{counts.todo}</strong><small>Waiting to start</small></article>
+                <article className="accomplishment-stat completed"><span>Completed this week</span><strong>{periodStats.weekCount}</strong><small>{periodStats.weekRange}</small><CompletionChart items={periodStats.weekItems} label="Completions by day this week" /></article>
+                <article className="accomplishment-stat completed"><span>Completed this month</span><strong>{periodStats.monthCount}</strong><small>{periodStats.monthLabel}</small><CompletionChart items={periodStats.monthItems} label="Completions by week this month" /></article>
                 <article className="accomplishment-stat completed"><span>Completed this quarter</span><strong>{completedThisQuarter}</strong><small>For Q{reportQuarter} {reportYear}</small></article>
             </section>
             {showForm && <section className="admin-card accomplishment-editor"><div className="admin-card-heading"><div><span className="step-label">NEW TASK</span><h2>Add an accomplishment</h2><p>Completed tasks are dated automatically and included in the matching quarterly report.</p></div></div><AccomplishmentForm key="new" onCancel={closeForm} onSaved={closeForm} /></section>}
@@ -96,7 +171,7 @@ export default function Accomplishments({ accomplishments = [] }) {
                 </div>
                 {visibleTasks.length === 0 ? <div className="empty-state"><span>✓</span><strong>{accomplishments.length === 0 ? 'Your board is ready' : 'No tasks in this view'}</strong><small>{accomplishments.length === 0 ? 'Add your first task to start tracking your work.' : 'Choose another status filter to see more tasks.'}</small></div> :
                     <div className="accomplishment-list">{visibleTasks.map((task) => <article className="accomplishment-item" key={task.id}>
-                        <div className="accomplishment-item-main"><div className="accomplishment-item-heading"><h3>{task.title}</h3><span className={`accomplishment-status ${task.status}`}>{statusLabels[task.status]}</span></div>{task.description && <p>{task.description}</p>}<div className="accomplishment-dates">{task.due_date && <span>Due {formatDate(task.due_date)}</span>}{task.completed_at && <span>Completed {formatDate(task.completed_at)}</span>}</div>{editingTask?.id === task.id && <div className="accomplishment-item-edit" id={`accomplishment-edit-${task.id}`}><AccomplishmentForm key={task.id} task={task} onCancel={() => setEditingTask(null)} onSaved={() => setEditingTask(null)} /></div>}</div>
+                        <div className="accomplishment-item-main"><div className="accomplishment-item-heading"><h3>{task.title}</h3><span className={`accomplishment-status ${task.status}`}>{statusLabels[task.status]}</span></div>{task.description && <p>{task.description}</p>}<div className="accomplishment-dates">{task.due_date && <span>Due {formatDueDate(task.due_date)}</span>}{task.completed_at && <span>Completed {formatDate(task.completed_at)}</span>}</div>{editingTask?.id === task.id && <div className="accomplishment-item-edit" id={`accomplishment-edit-${task.id}`}><AccomplishmentForm key={task.id} task={task} onCancel={() => setEditingTask(null)} onSaved={() => setEditingTask(null)} /></div>}</div>
                         <div className="accomplishment-actions">
                             {task.status !== 'completed' && <button className="task-action complete action-icon-button" type="button" aria-label="Mark complete" title="Mark complete" disabled={pendingAction !== null} onClick={() => completeTask(task)}><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="m5 12 4 4L19 6" /></svg></button>}
                             <button className="task-action action-icon-button" type="button" aria-label={editingTask?.id === task.id ? 'Collapse edit task form' : 'Edit task'} title={editingTask?.id === task.id ? 'Collapse edit form' : 'Edit task'} aria-expanded={editingTask?.id === task.id} aria-controls={editingTask?.id === task.id ? `accomplishment-edit-${task.id}` : undefined} disabled={pendingAction !== null} onClick={() => { setShowForm(false); setEditingTask((current) => current?.id === task.id ? null : task); }}><ActionIcon type="edit" /></button>

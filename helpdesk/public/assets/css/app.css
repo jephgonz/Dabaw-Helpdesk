@@ -685,13 +685,19 @@ button:focus-visible,a[href]:focus-visible{outline:2px solid #6689c4;outline-off
 .accomplishment-page-heading .dashboard-subtitle{max-width:620px;font-size:14px;line-height:1.55}
 .accomplishment-add-button{min-height:44px;padding:0 18px;border-radius:8px;font-size:14px}
 .accomplishment-add-button:hover{border-color:#183f7d;background:#183f7d;color:#fff}
-.accomplishment-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:18px}
+.accomplishment-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:18px}
 .accomplishment-stat{display:grid;min-height:124px;align-content:start;gap:9px;padding:20px;border:1px solid #e8ecf2;border-radius:11px;background:#fff;box-shadow:0 4px 16px rgba(24,43,75,.035)}
 .accomplishment-stat>span{color:#66748a;font-size:13px;font-weight:600}
 .accomplishment-stat>strong{color:#263650;font-family:Manrope,"Segoe UI",sans-serif;font-size:30px;line-height:1}
 .accomplishment-stat>small{color:#8994a5;font-size:12px}
 .accomplishment-stat.completed{border-color:#cfe8dc;background:#f4faf6}
 .accomplishment-stat.completed>strong{color:#26764b}
+.accomplishment-stat-chart{display:flex;align-items:stretch;gap:5px;height:68px;margin-top:3px}
+.accomplishment-stat-chart-item{display:grid;min-width:0;flex:1;grid-template-rows:12px 1fr 13px;gap:3px;text-align:center}
+.accomplishment-stat-chart-item>small{overflow:hidden;color:#69768b;font-size:10px;line-height:12px}
+.accomplishment-stat-chart-item>span{overflow:hidden;color:#8994a5;font-size:9px;line-height:13px;text-overflow:clip;white-space:nowrap}
+.accomplishment-stat-chart-track{display:flex;align-items:flex-end;justify-content:center;min-height:0;border-radius:4px 4px 0 0;background:rgba(38,118,75,.08)}
+.accomplishment-stat-chart-track>span{display:block;width:70%;min-height:2px;border-radius:4px 4px 0 0;background:#4b9b70}
 .accomplishment-editor{margin-bottom:18px;padding:24px}
 .accomplishment-editor .admin-card-heading{margin-bottom:22px}
 .accomplishment-form{max-width:none;width:100%;gap:17px}
@@ -934,4 +940,47 @@ button:focus-visible,a[href]:focus-visible{outline:2px solid #6689c4;outline-off
     .report-download{grid-column:1/-1;width:100%}
     .accomplishment-filters .filter-chip,.accomplishment-actions .task-action,.quarter-report-form input,.quarter-report-form select,.quarter-report-form .report-download{min-height:44px}
     .accomplishment-actions .task-action{min-width:44px}
+}
+
+.accomplishment-stats{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.accomplishment-stat{min-height:0;gap:6px;padding:14px 15px;border-radius:10px;box-shadow:0 2px 8px rgba(24,43,75,.035)}
+.accomplishment-stat>span{font-size:12px}
+.accomplishment-stat>strong{font-size:26px}
+.accomplishment-stat>small{font-size:11px;line-height:1.35}
+.accomplishment-stat-chart{height:54px;gap:4px;margin-top:1px}
+.accomplishment-stat-chart-item{grid-template-rows:11px 1fr 12px;gap:2px}
+.accomplishment-stat-chart-item>small{font-size:9px}
+.accomplishment-stat-chart-item>span{font-size:9px;line-height:12px}
+.accomplishment-editor,.accomplishment-board-card{padding:18px}
+.accomplishment-editor .admin-card-heading,.accomplishment-heading{margin-bottom:14px}
+.accomplishment-heading h2{font-size:18px}
+.accomplishment-heading p{margin-top:4px;font-size:12px}
+.accomplishment-toolbar{gap:12px;margin:0 -18px 14px;padding:0 18px 13px}
+.filter-chip{min-height:32px;padding:0 11px}
+.quarter-report-form{gap:7px}
+.quarter-report-form input,.quarter-report-form select,.report-download{min-height:34px}
+.accomplishment-list{gap:8px}
+.accomplishment-item{gap:12px;padding:13px;border-radius:8px}
+.accomplishment-item h3{font-size:14px}
+.accomplishment-item p{margin-top:5px;font-size:12px;line-height:1.5}
+.accomplishment-dates{gap:6px;margin-top:8px;font-size:11px}
+.accomplishment-dates span{padding:4px 7px}
+.accomplishment-actions{gap:5px}
+
+@media(max-width:1100px){
+    .accomplishment-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+@media(max-width:760px){
+    .accomplishment-stats{gap:8px}
+    .accomplishment-stat{padding:13px}
+    .accomplishment-board-card,.accomplishment-editor{padding:16px}
+    .accomplishment-toolbar{margin-right:-16px;margin-left:-16px;padding-right:16px;padding-left:16px}
+}
+
+@media(max-width:560px){
+    .accomplishment-toolbar{align-items:stretch}
+    .accomplishment-filters{gap:6px}
+    .accomplishment-filters .filter-chip{min-height:38px;padding:0 10px}
+    .accomplishment-item{padding:12px}
 }
